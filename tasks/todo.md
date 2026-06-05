@@ -35,3 +35,26 @@
 - NVIDIA and Firecrawl real API keys in .env — rotate after local setup.
 - NVIDIA models updated: reasoning=`meta/llama-3.3-70b-instruct`, coding=`qwen/qwen2-7b-instruct`
 - Deno needs `--env-file` or env vars passed explicitly; deno.json updated
+
+## Day 2 + Day 3 Review
+
+Implemented:
+- Deno runtime loads Pyodide.
+- `/execute` calls NVIDIA coding model.
+- Generated Python is sanitized (markdown fences stripped).
+- Python code executes in Pyodide sandbox.
+- stdout is captured via StringIO redirect.
+- final(value) is supported.
+- Multi-step RLM loop runs until final() or maxSteps.
+- TypeScript types for all interfaces.
+
+Verified:
+- `GET /health` — returns `modelServiceOk: true` ✅
+- `POST /execute` with `"Calculate 12 * 8"` — `status: "completed"`, `final: 96` ✅
+- response includes `generatedCode`, `stdout`, `final`, `steps` trace ✅
+- No markdown code fences in executed code ✅
+- No recursion yet.
+- No `llm_query()` yet.
+- No Firecrawl tools yet.
+- No Qdrant retrieval yet.
+- No graph memory yet.

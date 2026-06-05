@@ -1,0 +1,26 @@
+{
+  "version": "5",
+  "specifiers": {
+    "npm:pyodide@0.29.0": "0.29.0"
+  },
+  "npm": {
+    "@types/emscripten@1.41.5": {
+      "integrity": "sha512-cMQm7pxu6BxtHyqJ7mQZ2kXWV5SLmugybFdHCBbJ5eHzOo6VhBckEgAT3//rP5FwPHNPeEiq4SmQ5ucBwsOo4Q=="
+    },
+    "pyodide@0.29.0": {
+      "integrity": "sha512-ObIvsTmcrxAWKg+FT1GjfSdDmQc5CabnYe/nn5BCuhr9BVVITeQ24DBdZuG5B2tIiAZ9YonBpnDB7cmHZyd2Rw==",
+      "dependencies": [
+        "@types/emscripten",
+        "ws"
+      ]
+    },
+    "ws@8.21.0": {
+      "integrity": "sha512-Vsp28b7DRcimFQvrqu2Wek3z1iYxDCWqHYB8Qsnk/S4RfaCQzPGPyBNuVjJV3cd6UiKtUtp6sNM77gWvzcCH+g=="
+    }
+  },
+  "workspace": {
+    "dependencies": [
+      "npm:pyodide@0.29.0"
+    ]
+  }
+}
