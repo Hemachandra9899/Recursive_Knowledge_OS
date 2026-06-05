@@ -1,0 +1,175 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum JobStatus {
+  PENDING
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+model Project {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  jobs        ResearchJob[]
+  documents   Document[]
+  agentRuns   AgentRun[]
+  reports     Report[]
+}
+
+model ResearchJob {
+  id        String    @id @default(uuid())
+  projectId String
+  question  String
+  status    JobStatus @default(PENDING)
+  error     String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  agentRuns AgentRun[]
+  reports   Report[]
+
+  @@index([projectId])
+  @@index([status])
+}
+
+model Document {
+  id          String   @id @default(uuid())
+  projectId   String
+  sourceUrl   String?
+  title       String?
+  markdown    String
+  contentHash String?
+  metadata    Json     @default("{}")
+  createdAt   DateTime @default(now())
+
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  chunks      Chunk[]
+
+  @@index([projectId])
+  @@index([contentHash])
+}
+
+model Chunk {
+  id            String   @id @default(uuid())
+  documentId    String
+  chunkIndex    Int
+  chunkText     String
+  metadata      Json     @default("{}")
+  qdrantPointId String?
+  createdAt     DateTime @default(now())
+
+  document      Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+}
+
+model Entity {
+  id          String   @id @default(uuid())
+  projectId   String
+  name        String
+  type        String
+  description String?
+  confidence  Float?
+  metadata    Json     @default("{}")
+  createdAt   DateTime @default(now())
+
+  @@index([projectId])
+  @@index([name])
+  @@index([type])
+}
+
+model Relation {
+  id              String   @id @default(uuid())
+  projectId       String
+  sourceEntityId  String
+  targetEntityId  String
+  relationType    String
+  evidenceChunkId String?
+  confidence      Float?
+  metadata        Json     @default("{}")
+  createdAt       DateTime @default(now())
+
+  @@index([projectId])
+  @@index([sourceEntityId])
+  @@index([targetEntityId])
+  @@index([relationType])
+}
+
+model Claim {
+  id             String   @id @default(uuid())
+  projectId      String
+  claimText      String
+  evidenceChunkId String?
+  confidence     Float?
+  status         String?
+  metadata       Json     @default("{}")
+  createdAt      DateTime @default(now())
+
+  @@index([projectId])
+}
+
+model AgentRun {
+  id          String    @id @default(uuid())
+  projectId   String
+  jobId       String?
+  parentRunId String?
+  query       String
+  depth       Int       @default(0)
+  status      JobStatus @default(PENDING)
+  finalOutput Json?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  project     Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  job         ResearchJob? @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  steps       AgentStep[]
+
+  @@index([projectId])
+  @@index([jobId])
+  @@index([parentRunId])
+}
+
+model AgentStep {
+  id        String   @id @default(uuid())
+  runId     String
+  stepIndex Int
+  code      String?
+  stdout    String?
+  stderr    String?
+  result    Json?
+  createdAt DateTime @default(now())
+
+  run       AgentRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+}
+
+model Report {
+  id        String   @id @default(uuid())
+  projectId String
+  jobId     String?
+  title     String
+  content   String
+  metadata  Json     @default("{}")
+  createdAt DateTime @default(now())
+
+  project   Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  job       ResearchJob? @relation(fields: [jobId], references: [id], onDelete: SetNull)
+
+  @@index([projectId])
+  @@index([jobId])
+}

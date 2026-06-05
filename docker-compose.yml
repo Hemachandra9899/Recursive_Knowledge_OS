@@ -1,0 +1,80 @@
+services:
+  redis:
+    image: redis:7
+    container_name: rlm-forge-redis
+    ports:
+      - "6379:6379"
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: rlm-forge-qdrant
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+
+  model-service:
+    build:
+      context: ./apps/model-service
+    container_name: rlm-forge-model-service
+    env_file:
+      - .env
+    ports:
+      - "8100:8100"
+
+  rlm-runtime:
+    build:
+      context: ./packages/rlm-runtime
+    container_name: rlm-forge-runtime
+    env_file:
+      - .env
+    environment:
+      MODEL_SERVICE_URL: http://model-service:8100
+    ports:
+      - "8787:8787"
+    depends_on:
+      - model-service
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: rlm-forge-api
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    depends_on:
+      - redis
+      - qdrant
+      - rlm-runtime
+
+  worker:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: rlm-forge-worker
+    env_file:
+      - .env
+    command: npm run worker
+    depends_on:
+      - api
+      - redis
+      - qdrant
+      - rlm-runtime
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    container_name: rlm-forge-web
+    env_file:
+      - .env
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+
+volumes:
+  qdrant_data:
