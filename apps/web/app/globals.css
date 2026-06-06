@@ -1055,6 +1055,222 @@ pre {
   word-break: break-all;
 }
 
+/* New Chat Button */
+.newChatButton {
+  border: 1px solid var(--line);
+  background: var(--panel2);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 9px 14px;
+  font-size: 13px;
+  margin-left: 12px;
+}
+
+.newChatButton:hover {
+  border-color: var(--lime);
+}
+
+/* Markdown answer renderer */
+.markdownAnswer {
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--text);
+}
+
+.markdownAnswer p {
+  margin: 0 0 12px;
+}
+
+.markdownAnswer h1,
+.markdownAnswer h2,
+.markdownAnswer h3 {
+  margin: 18px 0 10px;
+  line-height: 1.25;
+}
+
+.markdownAnswer ul,
+.markdownAnswer ol {
+  padding-left: 22px;
+}
+
+.markdownAnswer table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 14px 0;
+  font-size: 13px;
+}
+
+.markdownAnswer th,
+.markdownAnswer td {
+  border: 1px solid var(--line);
+  padding: 10px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.markdownAnswer th {
+  background: var(--panel2);
+  font-weight: 700;
+}
+
+.markdownAnswer code {
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 2px 5px;
+  font-size: 12px;
+}
+
+/* Sources drawer */
+.sourcesWrap {
+  margin-top: 14px;
+}
+
+.sourcesButton {
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 8px 12px;
+  font-size: 13px;
+}
+
+.sourcesButton:hover {
+  color: var(--text);
+  border-color: var(--lime);
+}
+
+.sourcesOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.36);
+  z-index: 100;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.sourcesDrawer {
+  width: min(520px, 100vw);
+  height: 100vh;
+  background: var(--panel);
+  border-left: 1px solid var(--line);
+  overflow-y: auto;
+}
+
+.sourcesHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 22px;
+  border-bottom: 1px solid var(--line);
+}
+
+.sourcesHeader h3 {
+  margin: 0 0 6px;
+  font-size: 18px;
+}
+
+.sourcesHeader p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.sourcesHeader button {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 30px;
+  cursor: pointer;
+}
+
+.sourcesList {
+  padding: 18px;
+}
+
+.sourceCard {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  color: var(--text);
+  text-decoration: none;
+  margin-bottom: 12px;
+  background: var(--panel2);
+}
+
+.sourceCard:hover {
+  border-color: var(--lime);
+}
+
+.sourceIndex {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: var(--lime);
+  color: #111;
+  font-weight: 800;
+}
+
+.sourceHost {
+  color: var(--muted);
+  font-size: 12px;
+  margin-bottom: 5px;
+}
+
+.sourceTitle {
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.sourceUrl {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 6px;
+  word-break: break-all;
+}
+
+/* Run progress steps */
+.runProgress {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 12px;
+  margin-bottom: 14px;
+  background: var(--panel2);
+}
+
+.progressTitle {
+  color: var(--muted);
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+
+.progressStep {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 0;
+  color: var(--muted);
+}
+
+.progressStep span {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  font-size: 12px;
+}
+
+.progressStep p {
+  margin: 0;
+}
+
 /* Small Layout Fixes & Responsiveness */
 @media (max-width: 768px) {
   .dev-mode-workspace {

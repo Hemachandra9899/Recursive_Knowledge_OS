@@ -5,6 +5,8 @@ import { ToolsClient } from "./toolsClient.ts";
 import { StrategyAgent } from "./strategyAgent.ts";
 import { AnswerSynthesizer } from "./answerSynthesizer.ts";
 import { extractSources, isGenericOrRawAnswer } from "./answerUtils.ts";
+import { IntentDetector } from "./intentDetector.ts";
+import { contextLimitMessage, isContextTooLarge } from "./contextGuard.ts";
 import type {
   AnswerSource,
   ChatMessage,
@@ -67,6 +69,11 @@ Python execution rules:
 20. When using search_kb, synthesize the result["text"] fields into a normal answer.
 21. At the end of the answer, include source titles/URLs if available.
 22. If the answer is about an ads platform, prioritize actionable implementation areas.
+23. If wantsTable is implied by the task, use markdown tables.
+24. If sources are available, mention them at the bottom as "Sources".
+25. Never output raw tool objects, chunk IDs, document IDs, metadata, or arrays.
+26. If web research is needed, show the user-facing answer as a clean synthesis, not a dump.
+27. If multiple items are requested, use sections and tables.
 `.trim();
 
 function buildInitialMessages(
@@ -129,19 +136,22 @@ export class RlmLoop {
   private readonly toolsClient: ToolsClient;
   private readonly strategyAgent: StrategyAgent;
   private readonly answerSynthesizer: AnswerSynthesizer;
+  private readonly intentDetector: IntentDetector;
 
   constructor(
     modelClient = new ModelClient(),
     sandbox = new PythonSandbox(),
     toolsClient = new ToolsClient(),
     strategyAgent = new StrategyAgent(modelClient),
-    answerSynthesizer = new AnswerSynthesizer(modelClient)
+    answerSynthesizer = new AnswerSynthesizer(modelClient),
+    intentDetector = new IntentDetector(modelClient)
   ) {
     this.modelClient = modelClient;
     this.sandbox = sandbox;
     this.toolsClient = toolsClient;
     this.strategyAgent = strategyAgent;
     this.answerSynthesizer = answerSynthesizer;
+    this.intentDetector = intentDetector;
   }
 
   async run(req: ExecuteRequest): Promise<RlmRunResult> {
@@ -171,8 +181,26 @@ Do not mention the strategy unless useful to the user.
 `
       : "";
 
+    const intent = depth === 0
+      ? await this.intentDetector.detect(req.query)
+      : null;
+
+    const intentText = intent
+      ? `
+
+Detected user intent:
+${JSON.stringify(intent, null, 2)}
+
+Follow this intent:
+- If needsWebResearch=true, try search_kb first, then web_research if KB is empty.
+- If wantsTable=true, produce markdown tables where useful.
+- If wantsSources=true, use sources from retrieved/web data.
+- Always return a readable final answer.
+`
+      : "";
+
     const messages = buildInitialMessages(
-      `${req.query}${strategyText}`,
+      `${intent?.normalizedQuery || req.query}${intentText}${strategyText}`,
       depth,
       maxDepth
     );
@@ -244,8 +272,27 @@ Do not mention the strategy unless useful to the user.
       }
     };
 
+    const maxContextTokens = Number(
+      Deno.env.get("MAX_CONTEXT_TOKENS") || 24000
+    );
+
     try {
       for (let stepIndex = 0; stepIndex < maxSteps; stepIndex++) {
+        if (isContextTooLarge(messages, maxContextTokens)) {
+          return {
+            status: "failed",
+            runId: req.runId,
+            projectId: req.projectId,
+            query: req.query,
+            depth,
+            maxDepth,
+            final: contextLimitMessage(maxContextTokens),
+            sources: [],
+            steps,
+            error: "context_limit_reached",
+          };
+        }
+
         const rawCode = await this.modelClient.chatCoding(messages);
         const generatedCode = sanitizeGeneratedPython(rawCode);
         const execution = await this.sandbox.execute(

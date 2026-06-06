@@ -2,6 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { api, Project, ResearchJob } from "../lib/api";
+import { MessageContent } from "../components/MessageContent";
+import { SourcesPanel } from "../components/SourcesPanel";
+import { RunProgress } from "../components/RunProgress";
 
 type Theme = "dark" | "light";
 
@@ -66,6 +69,14 @@ function getSources(job?: ResearchJob) {
   if (Array.isArray(resultSources)) return resultSources;
 
   return [];
+}
+
+function newChat(
+  setActiveJobId: (id: string) => void,
+  setQuestion: (q: string) => void
+) {
+  setActiveJobId("");
+  setQuestion("");
 }
 
 function shortId(id: string) {
@@ -143,7 +154,7 @@ export default function Home() {
       };
     }
 
-    const status = activeJob.status;
+    const status = activeJob.status?.toLowerCase() || "";
     const runsCount = activeJob.agentRuns?.length || 0;
     
     let query = true;
@@ -330,7 +341,7 @@ export default function Home() {
                     onClick={() => setActiveJobId(job.id)}
                   >
                     <span>{job.question}</span>
-                    <small>{job.status === "completed" ? "✓" : "⚡"}</small>
+                    <small>{job.status?.toLowerCase() === "completed" ? "✓" : "⚡"}</small>
                   </button>
                 ))
               )}
@@ -359,6 +370,13 @@ export default function Home() {
               <p>{selectedProject?.name || "No project selected"}</p>
               <h2>{activeJob ? "Research Session" : "RLM Forge Playground"}</h2>
             </div>
+            <button
+              className="newChatButton"
+              onClick={() => newChat(setActiveJobId, setQuestion)}
+              title="Start a new chat"
+            >
+              + New Chat
+            </button>
           </div>
 
           {/* Chat / Dev Mode Switch */}
@@ -414,31 +432,13 @@ export default function Home() {
                     </div>
                     <div className="bubble assistant">
                       <b>RLM Forge · {activeJob.status}</b>
-                      {activeJob.status === "completed" || activeJob.status === "failed" ? (
-                        <TypewriterText text={answerText(activeJob)} />
+                      <RunProgress status={activeJob.status} />
+                      {["completed", "failed"].includes(activeJob.status?.toLowerCase()) ? (
+                        <MessageContent content={answerText(activeJob)} />
                       ) : (
                         <p className="answerText">{answerText(activeJob) || "Waiting for answer..."}</p>
                       )}
-                      {getSources(activeJob).length > 0 ? (
-                        <div className="sources">
-                          <div className="sourcesTitle">Sources</div>
-                          {getSources(activeJob).map((source: any, index: number) => (
-                            <a
-                              key={`${source.url || source.title}-${index}`}
-                              href={source.url || "#"}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="sourceItem"
-                            >
-                              <span>{index + 1}</span>
-                              <div>
-                                <b>{source.title || "Untitled source"}</b>
-                                {source.url ? <small>{source.url}</small> : null}
-                              </div>
-                            </a>
-                          ))}
-                        </div>
-                      ) : null}
+                      <SourcesPanel sources={getSources(activeJob)} />
                       {activeJob.agentRuns?.length ? (
                         <details>
                           <summary>Trace Logs ({activeJob.agentRuns.length} runs)</summary>
@@ -686,7 +686,7 @@ export default function Home() {
                         <span>{activeJob.error}</span>
                       </div>
                     )}
-                    {activeJob.status === "completed" && (
+                    {activeJob.status?.toLowerCase() === "completed" && (
                       <>
                         <div className="console-line" style={{ color: "var(--lime)" }}>
                           <span className="timestamp">[DONE]</span>
