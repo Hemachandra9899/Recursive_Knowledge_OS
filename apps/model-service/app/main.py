@@ -1,7 +1,10 @@
 import os
+import tempfile
+from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional
 
-from fastapi import FastAPI
+from fastapi import FastAPI, File, Form, UploadFile
+from markitdown import MarkItDown
 from pydantic import BaseModel
 from langchain_nvidia_ai_endpoints import ChatNVIDIA, NVIDIAEmbeddings
 
@@ -61,6 +64,48 @@ def chat(req: ChatRequest) -> Dict[str, Any]:
         "reasoning": "".join(reasoning_parts),
         "content": "".join(content_parts),
     }
+
+
+@app.post("/convert/file")
+async def convert_file(
+    file: UploadFile = File(...),
+    source_url: Optional[str] = Form(default=None),
+) -> Dict[str, Any]:
+    suffix = Path(file.filename or "upload").suffix
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+        content = await file.read()
+        tmp.write(content)
+        tmp_path = tmp.name
+
+    try:
+        md = MarkItDown()
+        result = md.convert(tmp_path)
+
+        markdown = getattr(result, "text_content", "") or ""
+        title = file.filename or "Uploaded file"
+
+        if not markdown.strip():
+            raise ValueError("MarkItDown returned empty markdown")
+
+        return {
+            "status": "ok",
+            "filename": file.filename,
+            "title": title,
+            "sourceUrl": source_url,
+            "markdown": markdown,
+            "metadata": {
+                "provider": "markitdown",
+                "filename": file.filename,
+                "contentType": file.content_type,
+                "sizeBytes": len(content),
+            },
+        }
+    finally:
+        try:
+            Path(tmp_path).unlink(missing_ok=True)
+        except Exception:
+            pass
 
 
 @app.post("/embed")

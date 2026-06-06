@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@fastify/cors": "^10.0.2",
+    "@fastify/multipart": "^9.4.0",
     "@prisma/client": "^6.1.0",
     "@qdrant/js-client-rest": "^1.18.0",
     "bullmq": "^5.34.1",

@@ -62,6 +62,33 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json();
 }
 
+export type ProjectDocument = {
+  id: string;
+  projectId: string;
+  sourceUrl?: string | null;
+  title?: string | null;
+  markdown: string;
+  contentHash?: string | null;
+  metadata?: unknown;
+  createdAt: string;
+  _count?: {
+    chunks: number;
+  };
+};
+
+export type IngestFileResponse = {
+  status: string;
+  filename: string;
+  title: string;
+  documentId: string;
+  chunksCreated: number;
+  chunksTotal: number;
+  embeddedChunks: number;
+  embeddingError?: string | null;
+  deduped: boolean;
+  markdownPreview: string;
+};
+
 export const api = {
   health: () => request<{ status: string; service: string }>("/health"),
   deps: () => request<Record<string, string>>("/health/deps"),
@@ -76,4 +103,36 @@ export const api = {
     ),
   getResearchJob: (jobId: string) =>
     request<ResearchJob>(`/research-jobs/${jobId}`),
+
+  listProjectDocuments: (projectId: string) =>
+    request<ProjectDocument[]>(`/projects/${projectId}/documents`),
+
+  listDocumentChunks: (documentId: string) =>
+    request<any[]>(`/documents/${documentId}/chunks`),
+
+  ingestFile: async (body: {
+    projectId: string;
+    file: File;
+    sourceUrl?: string;
+  }) => {
+    const formData = new FormData();
+    formData.append("projectId", body.projectId);
+    formData.append("file", body.file);
+
+    if (body.sourceUrl) {
+      formData.append("sourceUrl", body.sourceUrl);
+    }
+
+    const res = await fetch(`${API_URL}/tools/ingest-file`, {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`${res.status} ${res.statusText}: ${text}`);
+    }
+
+    return res.json() as Promise<IngestFileResponse>;
+  },
 };

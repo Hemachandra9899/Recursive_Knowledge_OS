@@ -1271,6 +1271,141 @@ pre {
   margin: 0;
 }
 
+.uploadPanel,
+.documentsPanel {
+  margin-top: 18px;
+  border-top: 1px solid var(--line);
+  padding-top: 16px;
+}
+
+.miniTitle {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 10px;
+}
+
+.uploadButton {
+  width: 100%;
+  border: 1px solid var(--line);
+  background: var(--panel2);
+  color: var(--text);
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 13px;
+}
+
+.uploadButton:hover {
+  border-color: var(--lime);
+}
+
+.uploadButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.uploadHint {
+  color: var(--muted);
+  font-size: 11px;
+  margin: 8px 0 0;
+  line-height: 1.4;
+}
+
+.uploadResult {
+  margin-top: 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel2);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.uploadResult b {
+  font-size: 13px;
+}
+
+.uploadResult span,
+.uploadResult small {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.uploadError {
+  margin-top: 10px;
+  color: var(--bad);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.documentsList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.docCard {
+  border: 1px solid var(--line);
+  background: var(--panel2);
+  border-radius: 12px;
+  padding: 10px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: start;
+}
+
+.docMain {
+  min-width: 0;
+}
+
+.docMain b {
+  display: block;
+  font-size: 13px;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.docMain span {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  margin-top: 4px;
+}
+
+.docMain small {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  margin-top: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.askDocButton {
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+.askDocButton:hover {
+  border-color: var(--lime);
+}
+
+.emptyText {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 /* Small Layout Fixes & Responsiveness */
 @media (max-width: 768px) {
   .dev-mode-workspace {

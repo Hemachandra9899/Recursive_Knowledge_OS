@@ -1,6 +1,7 @@
 import "dotenv/config";
 import Fastify from "fastify";
 import cors from "@fastify/cors";
+import multipart from "@fastify/multipart";
 import { z } from "zod";
 import { prisma } from "./db.js";
 import { researchQueue } from "./queue.js";
@@ -12,6 +13,12 @@ import { preview } from "./lib/text.js";
 const app = Fastify({ logger: true });
 
 await app.register(cors, { origin: true });
+
+await app.register(multipart, {
+  limits: {
+    fileSize: 25 * 1024 * 1024,
+  },
+});
 
 app.get("/health", async () => {
   return { status: "ok", service: "api" };
@@ -50,6 +57,42 @@ app.get("/health/deps", async () => {
 
   return checks;
 });
+
+const MODEL_SERVICE_URL =
+  process.env.MODEL_SERVICE_URL || "http://model-service:8100";
+
+async function convertFileWithMarkItDown(input: {
+  buffer: Buffer;
+  filename: string;
+  contentType?: string;
+  sourceUrl?: string;
+}) {
+  const formData = new FormData();
+
+  formData.append(
+    "file",
+    new Blob([new Uint8Array(input.buffer)], {
+      type: input.contentType || "application/octet-stream",
+    }),
+    input.filename
+  );
+
+  if (input.sourceUrl) {
+    formData.append("source_url", input.sourceUrl);
+  }
+
+  const response = await fetch(`${MODEL_SERVICE_URL}/convert/file`, {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`model-service /convert/file failed: ${response.status} ${text}`);
+  }
+
+  return await response.json();
+}
 
 app.post("/projects", async (req) => {
   const body = z.object({
@@ -318,6 +361,100 @@ app.post("/tools/web-research", async (req) => {
       url: result.url,
       text: preview(result.markdown, 1200),
     })),
+  };
+});
+
+app.post("/tools/ingest-file", async (req) => {
+  const parts = req.parts();
+
+  let projectId = "";
+  let sourceUrl: string | undefined;
+  let uploadedFile:
+    | {
+        buffer: Buffer;
+        filename: string;
+        contentType?: string;
+      }
+    | undefined;
+
+  for await (const part of parts) {
+    if (part.type === "field") {
+      if (part.fieldname === "projectId") {
+        projectId = String(part.value);
+      }
+
+      if (part.fieldname === "sourceUrl") {
+        sourceUrl = String(part.value);
+      }
+    }
+
+    if (part.type === "file") {
+      const chunks: Buffer[] = [];
+
+      for await (const chunk of part.file) {
+        chunks.push(chunk);
+      }
+
+      uploadedFile = {
+        buffer: Buffer.concat(chunks),
+        filename: part.filename,
+        contentType: part.mimetype,
+      };
+    }
+  }
+
+  const parsed = z.object({
+    projectId: z.string().uuid(),
+  }).parse({ projectId });
+
+  if (!uploadedFile) {
+    return {
+      status: "error",
+      error: "file is required",
+    };
+  }
+
+  const converted = await convertFileWithMarkItDown({
+    buffer: uploadedFile.buffer,
+    filename: uploadedFile.filename,
+    contentType: uploadedFile.contentType,
+    sourceUrl,
+  });
+
+  const markdown = String(converted.markdown || "");
+
+  if (!markdown.trim()) {
+    return {
+      status: "error",
+      error: "Converted markdown is empty",
+    };
+  }
+
+  const ingested = await ingestMarkdownDocument({
+    projectId: parsed.projectId,
+    sourceUrl: sourceUrl || uploadedFile.filename,
+    title: converted.title || uploadedFile.filename,
+    markdown,
+    metadata: {
+      provider: "markitdown",
+      filename: uploadedFile.filename,
+      contentType: uploadedFile.contentType,
+      sourceUrl,
+      conversionMetadata: converted.metadata || {},
+    },
+  });
+
+  return {
+    status: "ok",
+    filename: uploadedFile.filename,
+    title: converted.title || uploadedFile.filename,
+    documentId: ingested.document.id,
+    chunksCreated: ingested.chunksCreated,
+    chunksTotal: ingested.chunksTotal,
+    embeddedChunks: ingested.embeddedChunks,
+    embeddingError: ingested.embeddingError,
+    deduped: ingested.deduped,
+    markdownPreview: preview(markdown, 2000),
   };
 });
 

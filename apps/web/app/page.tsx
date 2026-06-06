@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { api, Project, ResearchJob } from "../lib/api";
+import { api, Project, ProjectDocument, ResearchJob } from "../lib/api";
+import { FileUploadPanel } from "../components/FileUploadPanel";
+import { DocumentsPanel } from "../components/DocumentsPanel";
 import { MessageContent } from "../components/MessageContent";
 import { SourcesPanel } from "../components/SourcesPanel";
 import { RunProgress } from "../components/RunProgress";
@@ -122,6 +124,7 @@ export default function Home() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [jobs, setJobs] = useState<ResearchJob[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState("");
+  const [documents, setDocuments] = useState<ProjectDocument[]>([]);
   const [activeJobId, setActiveJobId] = useState("");
   const [projectName, setProjectName] = useState("RLM Research");
   const [question, setQuestion] = useState(
@@ -212,6 +215,19 @@ export default function Home() {
     setDeps(await api.deps());
   }
 
+  async function refreshDocuments(pid = selectedProjectId) {
+    if (!pid) return;
+    const rows = await api.listProjectDocuments(pid);
+    setDocuments(rows);
+  }
+
+  function askDocument(doc: ProjectDocument) {
+    const title = doc.title || doc.sourceUrl || "the uploaded document";
+    setQuestion(
+      `Using the uploaded document "${title}", summarize the key points and answer with sources.`
+    );
+  }
+
   async function createProject() {
     setError("");
     const project = await api.createProject({
@@ -262,6 +278,7 @@ export default function Home() {
   useEffect(() => {
     if (selectedProjectId) {
       refreshJobs(selectedProjectId).catch((e) => setError(String(e)));
+      refreshDocuments(selectedProjectId).catch((e) => setError(String(e)));
       setActiveJobId("");
     }
   }, [selectedProjectId]);
@@ -327,6 +344,20 @@ export default function Home() {
               ))}
             </div>
           </div>
+
+          {selectedProjectId ? (
+            <>
+              <FileUploadPanel
+                projectId={selectedProjectId}
+                onUploaded={() => refreshDocuments(selectedProjectId)}
+              />
+
+              <DocumentsPanel
+                documents={documents}
+                onAskDocument={askDocument}
+              />
+            </>
+          ) : null}
 
           <div className="section" style={{ flex: 1, minHeight: "150px" }}>
             <label>Chat History</label>
