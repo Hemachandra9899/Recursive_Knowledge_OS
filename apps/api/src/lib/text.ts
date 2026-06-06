@@ -57,6 +57,7 @@ export function chunkText(
 }
 
 export function preview(text: string, maxChars = 1200): string {
+  if (!text) return "";
   if (text.length <= maxChars) return text;
   return `${text.slice(0, maxChars)}\n...[truncated ${text.length - maxChars} chars]`;
 }

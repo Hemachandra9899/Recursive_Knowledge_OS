@@ -38,6 +38,8 @@ export class ToolsClient {
         return "/tools/search-kb";
       case "query_graph":
         return "/tools/query-graph";
+      case "web_research":
+        return "/tools/web-research";
       default:
         throw new Error(`Unknown tool: ${name}`);
     }

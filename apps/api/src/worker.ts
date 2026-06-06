@@ -15,6 +15,63 @@ function readable(value: unknown): string {
   }
 }
 
+function isGenericFinal(value: unknown): boolean {
+  if (typeof value !== "string") return false;
+
+  const normalized = value.trim().toLowerCase();
+
+  return [
+    "done",
+    "completed",
+    "all questions have been answered.",
+    "all questions have been answered",
+    "the task is complete.",
+    "task complete",
+  ].includes(normalized);
+}
+
+function lastUsefulStdout(result: any): string {
+  const steps = Array.isArray(result?.steps) ? result.steps : [];
+
+  for (const step of [...steps].reverse()) {
+    const stdout = typeof step?.stdout === "string" ? step.stdout.trim() : "";
+
+    if (stdout && !stdout.toLowerCase().includes("an error occurred: 0")) {
+      return stdout;
+    }
+  }
+
+  for (const step of [...steps].reverse()) {
+    const stdout = typeof step?.stdout === "string" ? step.stdout.trim() : "";
+
+    if (stdout) {
+      return stdout;
+    }
+  }
+
+  return "";
+}
+
+function extractUserAnswer(result: any): string {
+  const finalValue = result?.final;
+
+  if (finalValue !== undefined && finalValue !== null && !isGenericFinal(finalValue)) {
+    return readable(finalValue);
+  }
+
+  const stdout = lastUsefulStdout(result);
+
+  if (stdout) {
+    return stdout;
+  }
+
+  if (result?.error) {
+    return readable(result.error);
+  }
+
+  return readable(finalValue || result);
+}
+
 new Worker(
   "research-jobs",
   async (job) => {
@@ -59,12 +116,7 @@ new Worker(
         },
       });
 
-      const answer =
-        result?.final !== undefined && result?.final !== null
-          ? readable(result.final)
-          : result?.error
-            ? readable(result.error)
-            : readable(result);
+      const answer = extractUserAnswer(result);
 
       await prisma.report.create({
         data: {
@@ -72,7 +124,10 @@ new Worker(
           jobId: researchJob.id,
           title: "RLM Answer",
           content: answer,
-          metadata: { result },
+          metadata: {
+            result,
+            sources: Array.isArray(result?.sources) ? result.sources : [],
+          },
         },
       });
 

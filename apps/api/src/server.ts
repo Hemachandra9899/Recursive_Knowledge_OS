@@ -4,8 +4,9 @@ import cors from "@fastify/cors";
 import { z } from "zod";
 import { prisma } from "./db.js";
 import { researchQueue } from "./queue.js";
-import { scrapeUrl } from "./lib/firecrawl.js";
+import { scrapeUrl, searchWeb } from "./lib/firecrawl.js";
 import { ingestMarkdownDocument, searchChunks } from "./lib/ingestion.js";
+import { QDRANT_COLLECTION, qdrant } from "./lib/qdrant.js";
 import { preview } from "./lib/text.js";
 
 const app = Fastify({ logger: true });
@@ -143,6 +144,8 @@ app.post("/tools/crawl-url", async (req) => {
     documentId: ingested.document.id,
     chunksCreated: ingested.chunksCreated,
     chunksTotal: ingested.chunksTotal,
+    embeddedChunks: ingested.embeddedChunks,
+    embeddingError: ingested.embeddingError,
     deduped: ingested.deduped,
     markdownPreview: preview(scraped.markdown, 2000),
   };
@@ -155,7 +158,7 @@ app.post("/tools/search-kb", async (req) => {
     topK: z.number().int().min(1).max(20).optional(),
   }).parse(req.body);
 
-  const results = await searchChunks({
+  const search = await searchChunks({
     projectId: body.projectId,
     query: body.query,
     topK: body.topK ?? 5,
@@ -164,7 +167,9 @@ app.post("/tools/search-kb", async (req) => {
   return {
     status: "ok",
     query: body.query,
-    results,
+    retrieval: search.retrieval,
+    retrievalError: search.error,
+    results: search.results,
   };
 });
 
@@ -234,6 +239,86 @@ app.get("/documents/:id/chunks", async (req) => {
       chunkIndex: "asc",
     },
   });
+});
+
+app.get("/knowledge/vector/status", async () => {
+  try {
+    const collection = await qdrant.getCollection(QDRANT_COLLECTION);
+    return {
+      status: "ok",
+      collection: QDRANT_COLLECTION,
+      details: collection,
+    };
+  } catch (error) {
+    return {
+      status: "error",
+      collection: QDRANT_COLLECTION,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+});
+
+function normalizeResearchQuery(query: string): string {
+  return query
+    .replace(/\bmets\s+graph\s+api\b/gi, "Meta Graph API")
+    .replace(/\bmeta\s+ads\s+api\b/gi, "Meta Marketing API")
+    .replace(/\bfacebook\s+ads\s+api\b/gi, "Meta Marketing API")
+    .trim();
+}
+
+app.post("/tools/web-research", async (req) => {
+  const body = z.object({
+    projectId: z.string().uuid(),
+    query: z.string().min(1),
+    maxResults: z.number().int().min(1).max(5).optional(),
+  }).parse(req.body);
+
+  const normalizedQuery = normalizeResearchQuery(body.query);
+  const maxResults = body.maxResults ?? 3;
+
+  const results = await searchWeb(normalizedQuery, maxResults);
+  const documents = [];
+
+  for (const result of results) {
+    if (!result.markdown || result.markdown.trim().length < 50) {
+      continue;
+    }
+
+    const ingested = await ingestMarkdownDocument({
+      projectId: body.projectId,
+      sourceUrl: result.url,
+      title: result.title,
+      markdown: result.markdown,
+      metadata: {
+        ...result.metadata,
+        originalQuery: body.query,
+        normalizedQuery,
+      },
+    });
+
+    documents.push({
+      documentId: ingested.document.id,
+      title: result.title,
+      url: result.url,
+      chunksCreated: ingested.chunksCreated,
+      chunksTotal: ingested.chunksTotal,
+      embeddedChunks: ingested.embeddedChunks,
+      embeddingError: ingested.embeddingError,
+      deduped: ingested.deduped,
+    });
+  }
+
+  return {
+    status: "ok",
+    query: body.query,
+    normalizedQuery,
+    documents,
+    results: results.map((result) => ({
+      title: result.title,
+      url: result.url,
+      text: preview(result.markdown, 1200),
+    })),
+  };
 });
 
 const port = Number(process.env.API_PORT || 8000);

@@ -70,6 +70,19 @@ async def search_kb(query, top_k=5):
         "query": query,
         "topK": top_k
     }))
+
+    data = _to_py(result)
+
+    if isinstance(data, dict) and "results" in data:
+        return data["results"]
+
+    return data
+
+async def web_research(query, max_results=3):
+    result = await _rlm_tool_js("web_research", to_js({
+        "query": query,
+        "maxResults": max_results
+    }))
     return _to_py(result)
 
 async def query_graph(query, depth=1):
@@ -77,7 +90,17 @@ async def query_graph(query, depth=1):
         "query": query,
         "depth": depth
     }))
-    return _to_py(result)
+
+    data = _to_py(result)
+
+    if isinstance(data, dict):
+        return {
+            "entities": data.get("entities", []),
+            "relations": data.get("relations", []),
+            "raw": data,
+        }
+
+    return data
 
 def final(value=None):
     global _rlm_final_called, _rlm_final_value

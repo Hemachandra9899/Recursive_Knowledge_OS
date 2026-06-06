@@ -5,11 +5,47 @@ import { api, Project, ResearchJob } from "../lib/api";
 
 type Theme = "dark" | "light";
 
+function isGenericAnswer(value: string) {
+  const normalized = value.trim().toLowerCase();
+
+  return [
+    "done",
+    "completed",
+    "all questions have been answered.",
+    "all questions have been answered",
+    "the task is complete.",
+    "task complete",
+  ].includes(normalized);
+}
+
+function extractStdout(job?: ResearchJob) {
+  const runs = job?.agentRuns || [];
+
+  for (const run of runs) {
+    const result = run.finalOutput as any;
+    const steps = Array.isArray(result?.steps) ? result.steps : [];
+
+    for (const step of [...steps].reverse()) {
+      if (typeof step?.stdout === "string" && step.stdout.trim()) {
+        return step.stdout.trim();
+      }
+    }
+  }
+
+  return "";
+}
+
 function answerText(job?: ResearchJob) {
   if (!job) return "";
 
   const report = job.reports?.[0];
-  if (report?.content) return report.content;
+
+  if (report?.content && !isGenericAnswer(report.content)) {
+    return report.content;
+  }
+
+  const stdout = extractStdout(job);
+  if (stdout) return stdout;
 
   const finalOutput = job.agentRuns?.[0]?.finalOutput as any;
   const final = finalOutput?.final;
@@ -17,7 +53,19 @@ function answerText(job?: ResearchJob) {
   if (typeof final === "string") return final;
   if (final !== undefined && final !== null) return JSON.stringify(final, null, 2);
 
-  return job.error || "";
+  return job.error || report?.content || "";
+}
+
+function getSources(job?: ResearchJob) {
+  const report = job?.reports?.[0] as any;
+  const sources = report?.metadata?.sources;
+
+  if (Array.isArray(sources)) return sources;
+
+  const resultSources = (job?.agentRuns?.[0]?.finalOutput as any)?.sources;
+  if (Array.isArray(resultSources)) return resultSources;
+
+  return [];
 }
 
 function shortId(id: string) {
@@ -371,6 +419,26 @@ export default function Home() {
                       ) : (
                         <p className="answerText">{answerText(activeJob) || "Waiting for answer..."}</p>
                       )}
+                      {getSources(activeJob).length > 0 ? (
+                        <div className="sources">
+                          <div className="sourcesTitle">Sources</div>
+                          {getSources(activeJob).map((source: any, index: number) => (
+                            <a
+                              key={`${source.url || source.title}-${index}`}
+                              href={source.url || "#"}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="sourceItem"
+                            >
+                              <span>{index + 1}</span>
+                              <div>
+                                <b>{source.title || "Untitled source"}</b>
+                                {source.url ? <small>{source.url}</small> : null}
+                              </div>
+                            </a>
+                          ))}
+                        </div>
+                      ) : null}
                       {activeJob.agentRuns?.length ? (
                         <details>
                           <summary>Trace Logs ({activeJob.agentRuns.length} runs)</summary>

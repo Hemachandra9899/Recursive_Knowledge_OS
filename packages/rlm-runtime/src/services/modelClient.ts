@@ -40,6 +40,35 @@ export class ModelClient {
     return data.content;
   }
 
+  async chatReasoning(messages: ChatMessage[]): Promise<string> {
+    const response = await fetch(`${this.baseUrl}/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        mode: "reasoning",
+        messages,
+        temperature: 0.2,
+        top_p: 0.9,
+        max_tokens: 4096,
+      }),
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(
+        `model-service /chat reasoning failed: ${response.status} ${text}`,
+      );
+    }
+
+    const data = (await response.json()) as ModelChatResponse;
+
+    if (!data.content || !data.content.trim()) {
+      throw new Error("model-service returned empty reasoning response");
+    }
+
+    return data.content;
+  }
+
   async health(): Promise<boolean> {
     try {
       const response = await fetch(`${this.baseUrl}/health`);

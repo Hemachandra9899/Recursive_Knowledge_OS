@@ -3,7 +3,10 @@ import { ModelClient } from "./modelClient.ts";
 import { PythonSandbox } from "./pythonSandbox.ts";
 import { ToolsClient } from "./toolsClient.ts";
 import { StrategyAgent } from "./strategyAgent.ts";
+import { AnswerSynthesizer } from "./answerSynthesizer.ts";
+import { extractSources, isGenericOrRawAnswer } from "./answerUtils.ts";
 import type {
+  AnswerSource,
   ChatMessage,
   ExecuteRequest,
   RlmRunResult,
@@ -24,22 +27,46 @@ Available async functions:
 - await llm_query(prompt: str, context: dict = None)
 - await crawl_url(url: str, max_pages: int = 1)
 - await search_kb(query: str, top_k: int = 5)
+- await web_research(query: str, max_results: int = 3)
 - await query_graph(query: str, depth: int = 1)
 
 Available sync functions:
 - print(value)
 - final(value)
 
-Rules:
+Tool output rules:
+- search_kb(query) returns a list of chunk objects.
+- Each search result may contain: text, title, sourceUrl, score, retrieval, metadata.
+- Do not expect an "answer" field from search_kb.
+- Use result["text"] as evidence when available.
+- crawl_url(url) returns a document ingestion summary.
+- web_research(query) searches/scrapes the web and stores results into project knowledge.
+- After web_research(...), call search_kb(...) again to read stored chunks.
+- query_graph(query) returns entities and relations.
+
+Python execution rules:
 1. Return only executable Python code.
 2. Do not use markdown.
 3. Do not wrap code in triple backticks.
-4. Do not explain.
-5. Always call final(...) when the task is complete.
-6. Use await for async tools.
-7. Use crawl_url only when a URL is given or clearly needed.
-8. Use search_kb before answering from stored project knowledge.
-9. Prefer normal readable final answers unless the user asks for JSON.
+4. Do not explain outside code.
+5. Do not use asyncio.run().
+6. You are already inside an async function, so use await directly.
+7. Always call final(...) when the task is complete.
+8. final(...) must contain the actual user-facing answer.
+9. Never call final("All questions have been answered.").
+10. Never call final("Done.").
+11. If the user asks multiple questions, answer each question clearly.
+12. Prefer normal readable text in final(...), unless the user asks for JSON.
+13. Use search_kb before answering from stored project knowledge.
+14. If search_kb returns no results and the user asks about public docs, APIs, libraries, companies, products, or current external information, call web_research(...), then call search_kb(...) again.
+15. Do not stop with "No project knowledge found" until web_research has been tried.
+16. If the user says "mets graph api", treat it as "Meta Graph API".
+17. For ads platform questions about Meta/Facebook, research "Meta Graph API Marketing API ads platform endpoints".
+18. Never pass raw search_kb results directly to final().
+19. Never expose chunkId, documentId, metadata, or raw result arrays to the user.
+20. When using search_kb, synthesize the result["text"] fields into a normal answer.
+21. At the end of the answer, include source titles/URLs if available.
+22. If the answer is about an ads platform, prioritize actionable implementation areas.
 `.trim();
 
 function buildInitialMessages(
@@ -101,17 +128,20 @@ export class RlmLoop {
   private readonly sandbox: PythonSandbox;
   private readonly toolsClient: ToolsClient;
   private readonly strategyAgent: StrategyAgent;
+  private readonly answerSynthesizer: AnswerSynthesizer;
 
   constructor(
     modelClient = new ModelClient(),
     sandbox = new PythonSandbox(),
     toolsClient = new ToolsClient(),
-    strategyAgent = new StrategyAgent(modelClient)
+    strategyAgent = new StrategyAgent(modelClient),
+    answerSynthesizer = new AnswerSynthesizer(modelClient)
   ) {
     this.modelClient = modelClient;
     this.sandbox = sandbox;
     this.toolsClient = toolsClient;
     this.strategyAgent = strategyAgent;
+    this.answerSynthesizer = answerSynthesizer;
   }
 
   async run(req: ExecuteRequest): Promise<RlmRunResult> {
@@ -189,6 +219,31 @@ Do not mention the strategy unless useful to the user.
       });
     };
 
+    const finalizeAnswer = async (final: unknown): Promise<{ final: unknown; sources: AnswerSource[] }> => {
+      const sources = extractSources(final, steps);
+      const lastStdout = [...steps]
+        .reverse()
+        .map((step) => step.stdout?.trim())
+        .find(Boolean) || "";
+
+      if (!isGenericOrRawAnswer(final)) {
+        return { final, sources };
+      }
+
+      try {
+        const synthesized = await this.answerSynthesizer.synthesize({
+          query: req.query,
+          rawFinal: final,
+          stdout: lastStdout,
+          sources,
+        });
+
+        return { final: synthesized.answer, sources: synthesized.sources };
+      } catch {
+        return { final: lastStdout || final, sources };
+      }
+    };
+
     try {
       for (let stepIndex = 0; stepIndex < maxSteps; stepIndex++) {
         const rawCode = await this.modelClient.chatCoding(messages);
@@ -217,6 +272,7 @@ Do not mention the strategy unless useful to the user.
         });
 
         if (execution.finalCalled && !execution.error) {
+          const finalized = await finalizeAnswer(execution.final);
           return {
             status: "completed",
             runId: req.runId,
@@ -224,13 +280,16 @@ Do not mention the strategy unless useful to the user.
             query: req.query,
             depth,
             maxDepth,
-            final: execution.final,
+            final: finalized.final,
+            sources: finalized.sources,
             steps,
             error: null,
           };
         }
       }
 
+      const fallbackFinal = steps.at(-1)?.final ?? null;
+      const finalized = await finalizeAnswer(fallbackFinal);
       return {
         status: "max_steps_reached",
         runId: req.runId,
@@ -238,7 +297,8 @@ Do not mention the strategy unless useful to the user.
         query: req.query,
         depth,
         maxDepth,
-        final: steps.at(-1)?.final ?? null,
+        final: finalized.final,
+        sources: finalized.sources,
         steps,
         error: "RLM loop reached maxSteps before final() completed successfully.",
       };
