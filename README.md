@@ -192,22 +192,31 @@ To trigger the full pipeline — web crawl, ingestion, semantic search, Python e
 - [ ] **Entity-Claim Knowledge Graphs** — Extract explicit code entities and store relational knowledge as graph networks
 
 ---
+## Roadmap
 
-## Project Structure
+- [ ] **Distraction-free UI** — Typography-first redesign, collapsible source drawers, and hidden trace layouts by default.
+- [ ] **SSE Token Streaming** — Live token-by-token generation featuring real-time execution step metrics.
+- [ ] **Domain Prioritization** — Smart source ranking that elevates official developer subdomains over secondary blogs.
+- [ ] **Entity-Claim Knowledge Graphs** — Extracting explicit code entities to map relational knowledge across graph networks.
+- [ ] **Multi-Agent Swarm Orchestration** — Transitioning to a hierarchical multi-agent layer where specialized sub-agents handle parallel research, code execution, and verification tasks.
+- [ ] **Extensible Connector Matrix** — Native integrations for deep ingestion across private workspaces like **Notion**, Slack, GitHub, and Google Drive.
+- [ ] **Multi-Tier Memory Architecture** — A persistent hybrid memory engine combining short-term runtime states (Pyodide), episodic trace logs, and long-term vector-backed recall.
 
-```
-scout/
-├── apps/
-│   ├── web/              # Next.js frontend
-│   └── api/              # Fastify API gateway
-├── workers/
-│   ├── core/             # Background job runner (Node.js)
-│   └── runtime/          # Scout execution sandbox (Deno + Pyodide)
-├── services/
-│   └── models/           # NVIDIA / OpenRouter model service
-├── docker-compose.yml
-└── run.sh
-```
+---
+
+## Project Status
+
+<div align="center">
+
+![Project Status: Active Demo](https://img.shields.io/badge/Status-Active%20Demo-6D55E6?style=flat-square)
+![Stage: Early Alpha](https://img.shields.io/badge/Stage-Early%20Alpha-000000?style=flat-square)
+
+</div>
+
+> [!NOTE]
+> **Scout is currently in an intense development and demo phase.** The core single-agent reasoning engine, Redis/BullMQ task orchestration, Qdrant vector ingestion, and Pyodide sandboxed execution are fully operational. However, the system architecture is moving fast as multi-agent swarms and workspace connectors are wired in. 
+  
+Expect rapid updates on the `main` branch. Pull requests, runtime execution sandbox feedback, and architectural deep-dives are welcome.
 
 ---
 
