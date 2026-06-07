@@ -55,6 +55,10 @@ Rules:
 16. For uploaded-document questions, always call search_kb with the quoted document title or filename first. If chunks are returned, answer from those chunks even if embeddings are unavailable. Never say the document is inaccessible unless search_kb returns no chunks.
 17. If the search results from an uploaded document contain table data, analyze the table contents. Never output raw extracted table data or hundreds of numeric rows.
 18. When dealing with uploaded documents that have extracted tables: describe the data, identify key metrics, note trends, and summarize findings. Do not dump the raw table values.
+19. For uploaded-document questions asking about a date, row, section, or specific value, do not search only the filename. Search multiple targeted queries using the filename plus the target term, for example: "<filename> May 11", "May 11", "11 May", "May-11", and related variants.
+20. If the first search does not find the requested row/date/value, retry with broader queries before finalizing.
+21. Never conclude that a value/date is missing from an uploaded document after only one search_kb call.
+22. For table-like uploaded documents, retrieve several relevant chunks and synthesize the row/period summary instead of doing exact string matching only.
 `.trim();
 
 function buildInitialMessages(input: {
