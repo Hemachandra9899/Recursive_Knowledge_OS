@@ -398,13 +398,6 @@ export default function Home() {
                 {activeConversationId ? "Chat" : "Scout Playground"}
               </h2>
             </div>
-            <button
-              className="newChatButton"
-              onClick={handleNewChat}
-              title="Start a new chat"
-            >
-              + New Chat
-            </button>
           </div>
 
           <div className="mode-toggle-container">
