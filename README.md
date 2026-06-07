@@ -2,17 +2,16 @@
 
 <br/>
 
-```
+<pre style="color: #3ECF8E; background: transparent; border: none;">
 ███████╗ ██████╗ ██████╗ ██╗   ██╗████████╗
 ██╔════╝██╔════╝██╔═══██╗██║   ██║╚══██╔══╝
 ███████╗██║     ██║   ██║██║   ██║   ██║   
 ╚════██║██║     ██║   ██║██║   ██║   ██║   
 ███████║╚██████╗╚██████╔╝╚██████╔╝   ██║   
 ╚══════╝ ╚═════╝ ╚═════╝  ╚═════╝    ╚═╝   
-```
+</pre>
 
-**A recursive AI research operating system.**  
-Not a chatbot. A research agent that thinks before it speaks.
+**A recursive AI research operating system.** Not a chatbot. A research agent that thinks before it speaks.
 
 <br/>
 
