@@ -1,10 +1,14 @@
-import { scrapeUrl, searchWeb } from "@rlm-forge/knowledge/scrapers/firecrawl.scraper.js";
-import { scrapePageWithScrapling } from "@rlm-forge/knowledge/scrapers/scrapling.scraper.js";
-import { planOfficialDocs } from "@rlm-forge/knowledge/research/official-docs-planner.js";
-import { keepHighQualitySources } from "@rlm-forge/knowledge/research/source-quality.js";
-import { ingestMarkdownDocument } from "@rlm-forge/knowledge/ingestion/ingest-markdown-document.js";
-import { preview } from "@rlm-forge/knowledge/text/chunk-text.js";
-import { searchKnowledgeBase as retrievalSearch } from "@rlm-forge/retrieval";
+import {
+  filterAndRankSources,
+  ingestMarkdownDocument,
+  normalizeResearchQuery,
+  planResources,
+  preview,
+  scrapePageWithScrapling,
+  scrapeUrl,
+} from "@rlm-forge/knowledge";
+
+import { searchKnowledgeBase as runKnowledgeSearch } from "@rlm-forge/retrieval";
 import { prisma } from "@rlm-forge/database/prisma.js";
 import type {
   CrawlUrlInput,
@@ -42,40 +46,61 @@ export async function crawlUrl(input: CrawlUrlInput) {
 }
 
 export async function searchKnowledgeBase(input: SearchKbInput) {
-  const search = await retrievalSearch({
+  const normalizedQuery = normalizeResearchQuery(input.query);
+
+  const search = await runKnowledgeSearch({
     projectId: input.projectId,
-    query: input.query,
-    topK: input.topK ?? 5,
+    query: normalizedQuery,
+    topK: input.topK ?? 10,
   });
+
+  const rankedResults = filterAndRankSources(
+    (search.results || []).map((result: any) => ({
+      ...result,
+      url: result.sourceUrl || result.url,
+    })),
+    normalizedQuery,
+    {
+      minScore: 25,
+      maxSources: input.topK ?? 10,
+    },
+  );
 
   return {
     status: "ok",
     query: input.query,
+    normalizedQuery,
     retrieval: search.retrieval,
     retrievalError: search.error,
-    results: search.results,
+    results: rankedResults,
   };
-}
-
-function normalizeResearchQuery(query: string): string {
-  return query
-    .replace(/\bmets\s+graph\s+api\b/gi, "Meta Graph API")
-    .replace(/\bmeta\s+ads\s+api\b/gi, "Meta Marketing API")
-    .replace(/\bfacebook\s+ads\s+api\b/gi, "Meta Marketing API")
-    .trim();
 }
 
 export async function webResearch(input: WebResearchInput) {
   const normalizedQuery = normalizeResearchQuery(input.query);
-  const maxResults = input.maxResults ?? 5;
+  const maxResults = input.maxResults ?? 10;
 
-  const officialTargets = planOfficialDocs(normalizedQuery).slice(0, maxResults);
+  const plannedResources = planResources(normalizedQuery, maxResults);
+
   const documents = [];
   const results = [];
 
-  for (const target of officialTargets) {
+  for (const target of plannedResources) {
     try {
       const scraped = await scrapePageWithScrapling(target.url);
+
+      if (!scraped.markdown || scraped.markdown.trim().length < 250) {
+        results.push({
+          title: target.title,
+          url: target.url,
+          product: target.product,
+          domain: target.domain,
+          tier: target.tier,
+          sourceType: "registry_resource",
+          error: "Scraped markdown was too short.",
+        });
+        continue;
+      }
 
       const ingested = await ingestMarkdownDocument({
         projectId: input.projectId,
@@ -83,12 +108,16 @@ export async function webResearch(input: WebResearchInput) {
         title: scraped.title || target.title,
         markdown: scraped.markdown,
         metadata: {
-          ...scraped.metadata,
-          originalQuery: input.query,
+          provider: "scrapling",
+          sourceType: "registry_resource",
+          registryId: target.id,
+          product: target.product,
+          domain: target.domain,
+          tier: target.tier,
+          topics: target.topics,
+          matchedScore: target.matchedScore,
+          matchedBy: target.matchedBy,
           normalizedQuery,
-          plannedReason: target.reason,
-          targetProvider: target.provider,
-          sourceType: "official_docs",
         },
       });
 
@@ -96,114 +125,34 @@ export async function webResearch(input: WebResearchInput) {
         documentId: ingested.document.id,
         title: scraped.title || target.title,
         url: scraped.url,
-        chunksCreated: ingested.chunksCreated,
+        product: target.product,
+        domain: target.domain,
+        tier: target.tier,
+        sourceType: "registry_resource",
         chunksTotal: ingested.chunksTotal,
         embeddedChunks: ingested.embeddedChunks,
         embeddingError: ingested.embeddingError,
         deduped: ingested.deduped,
-        provider: target.provider,
-        scrapeProvider: "scrapling",
       });
 
       results.push({
         title: scraped.title || target.title,
         url: scraped.url,
-        text: preview(scraped.markdown, 1200),
-        provider: target.provider,
-        scrapeProvider: "scrapling",
+        product: target.product,
+        domain: target.domain,
+        tier: target.tier,
+        sourceType: "registry_resource",
+        text: preview(scraped.markdown, 1500),
       });
     } catch (error) {
-      try {
-        const scraped = await scrapeUrl(target.url);
-
-        const ingested = await ingestMarkdownDocument({
-          projectId: input.projectId,
-          sourceUrl: scraped.url,
-          title: scraped.title || target.title,
-          markdown: scraped.markdown,
-          metadata: {
-            ...scraped.metadata,
-            originalQuery: input.query,
-            normalizedQuery,
-            plannedReason: target.reason,
-            targetProvider: target.provider,
-            sourceType: "official_docs_fallback",
-          },
-        });
-
-        documents.push({
-          documentId: ingested.document.id,
-          title: scraped.title || target.title,
-          url: scraped.url,
-          chunksCreated: ingested.chunksCreated,
-          chunksTotal: ingested.chunksTotal,
-          embeddedChunks: ingested.embeddedChunks,
-          embeddingError: ingested.embeddingError,
-          deduped: ingested.deduped,
-          provider: target.provider,
-          scrapeProvider: "firecrawl_fallback",
-        });
-
-        results.push({
-          title: scraped.title || target.title,
-          url: scraped.url,
-          text: preview(scraped.markdown, 1200),
-          provider: target.provider,
-          scrapeProvider: "firecrawl_fallback",
-        });
-      } catch (fallbackError) {
-        results.push({
-          title: target.title,
-          url: target.url,
-          provider: target.provider,
-          scrapeProvider: "error",
-          text: `Failed to scrape with Scrapling and Firecrawl fallback. Scrapling error: ${
-            error instanceof Error ? error.message : String(error)
-          }. Fallback error: ${
-            fallbackError instanceof Error ? fallbackError.message : String(fallbackError)
-          }`,
-        });
-      }
-    }
-  }
-
-  if (officialTargets.length === 0) {
-    const rawResults = await searchWeb(normalizedQuery, maxResults);
-    const webResults = keepHighQualitySources(rawResults);
-
-    for (const result of webResults) {
-      if (!result.markdown || result.markdown.trim().length < 50) continue;
-
-      const ingested = await ingestMarkdownDocument({
-        projectId: input.projectId,
-        sourceUrl: result.url,
-        title: result.title,
-        markdown: result.markdown,
-        metadata: {
-          ...result.metadata,
-          originalQuery: input.query,
-          normalizedQuery,
-          sourceType: "search_result",
-        },
-      });
-
-      documents.push({
-        documentId: ingested.document.id,
-        title: result.title,
-        url: result.url,
-        chunksCreated: ingested.chunksCreated,
-        chunksTotal: ingested.chunksTotal,
-        embeddedChunks: ingested.embeddedChunks,
-        embeddingError: ingested.embeddingError,
-        deduped: ingested.deduped,
-        provider: "firecrawl_search",
-      });
-
       results.push({
-        title: result.title,
-        url: result.url,
-        text: preview(result.markdown, 1200),
-        provider: "firecrawl_search",
+        title: target.title,
+        url: target.url,
+        product: target.product,
+        domain: target.domain,
+        tier: target.tier,
+        sourceType: "registry_resource",
+        error: error instanceof Error ? error.message : String(error),
       });
     }
   }
@@ -212,7 +161,19 @@ export async function webResearch(input: WebResearchInput) {
     status: "ok",
     query: input.query,
     normalizedQuery,
-    strategy: officialTargets.length > 0 ? "official_docs_first" : "search_fallback",
+    strategy: plannedResources.length > 0
+      ? "doc_registry_scrapling"
+      : "no_registry_match",
+    resourcesPlanned: plannedResources.map((resource) => ({
+      id: resource.id,
+      product: resource.product,
+      title: resource.title,
+      url: resource.url,
+      domain: resource.domain,
+      tier: resource.tier,
+      matchedScore: resource.matchedScore,
+      matchedBy: resource.matchedBy,
+    })),
     documents,
     results,
   };

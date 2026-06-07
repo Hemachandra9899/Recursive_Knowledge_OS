@@ -103,6 +103,50 @@ function visit(value: unknown, sources: AnswerSource[]) {
   }
 }
 
+function isWeakUrl(url?: string | null) {
+  if (!url) return false;
+
+  try {
+    const host = new URL(url).hostname.replace(/^www\./, "");
+
+    return [
+      "youtube.com",
+      "youtu.be",
+      "postman.com",
+      "stackoverflow.com",
+      "reddit.com",
+      "medium.com",
+    ].some((domain) => host === domain || host.endsWith(`.${domain}`));
+  } catch {
+    return false;
+  }
+}
+
+function sourceRank(url?: string | null) {
+  if (!url) return 0;
+
+  try {
+    const host = new URL(url).hostname.replace(/^www\./, "");
+
+    if (
+      [
+        "developers.facebook.com",
+        "developers.google.com",
+        "business-api.tiktok.com",
+        "ads.tiktok.com",
+      ].some((domain) => host === domain || host.endsWith(`.${domain}`))
+    ) {
+      return 100;
+    }
+
+    if (isWeakUrl(url)) return 1;
+
+    return 40;
+  } catch {
+    return 0;
+  }
+}
+
 export function extractSources(final: unknown, steps: RlmStep[]): AnswerSource[] {
   const sources: AnswerSource[] = [];
 
@@ -124,5 +168,8 @@ export function extractSources(final: unknown, steps: RlmStep[]): AnswerSource[]
     }
   }
 
-  return sources.slice(0, 8);
+  return sources
+    .filter((source) => !isWeakUrl(source.url))
+    .sort((a, b) => sourceRank(b.url) - sourceRank(a.url))
+    .slice(0, 8);
 }

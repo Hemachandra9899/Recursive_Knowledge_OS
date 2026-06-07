@@ -54,6 +54,7 @@ export function useResearchJob(jobId?: string, enabled = true) {
     queryKey: queryKeys.researchJob(jobId || ""),
     queryFn: () => api.getResearchJob(jobId!),
     enabled: Boolean(jobId) && enabled,
+    staleTime: 0,
   });
 }
 

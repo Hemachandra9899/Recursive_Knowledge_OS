@@ -564,6 +564,73 @@ textarea:focus {
   margin: 0;
 }
 
+.text-muted {
+  color: var(--muted);
+}
+
+.message-content {
+  line-height: 1.6;
+}
+
+.message-content p {
+  margin: 0 0 8px;
+}
+
+.message-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0;
+  font-size: 12px;
+}
+
+.message-content th,
+.message-content td {
+  border: 1px solid var(--line);
+  padding: 8px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.message-content th {
+  background: var(--panel2);
+  font-weight: 700;
+}
+
+.message-content ul,
+.message-content ol {
+  padding-left: 20px;
+}
+
+.message-content code {
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 1px 4px;
+  font-size: 11px;
+}
+
+.message-content h1,
+.message-content h2,
+.message-content h3 {
+  margin: 16px 0 8px;
+  line-height: 1.25;
+}
+
+.message-content h2 {
+  font-size: 14px;
+}
+
+.message-content h3 {
+  font-size: 13px;
+}
+
+.message-content blockquote {
+  border-left: 2px solid var(--lime);
+  margin: 8px 0;
+  padding: 4px 12px;
+  color: var(--muted);
+}
+
 .answerText {
   white-space: pre-wrap;
 }

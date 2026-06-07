@@ -6,15 +6,14 @@ type Source = {
   title?: string | null;
   url?: string | null;
   score?: number | null;
-  retrieval?: string | null;
 };
 
 function hostname(url?: string | null) {
-  if (!url) return "source";
+  if (!url) return "unknown";
   try {
-    return new URL(url).hostname.replace("www.", "");
+    return new URL(url).hostname.replace(/^www\./, "");
   } catch {
-    return url;
+    return "unknown";
   }
 }
 
@@ -25,44 +24,32 @@ export function SourcesPanel({ sources }: { sources: Source[] }) {
 
   return (
     <div className="sourcesWrap">
-      <button className="sourcesButton" onClick={() => setOpen(true)}>
-        {sources.length} sources
+      <button className="sourcesButton" onClick={() => setOpen(!open)}>
+        {open ? "Hide Sources" : `Sources (${sources.length})`}
       </button>
 
-      {open ? (
-        <div className="sourcesOverlay">
-          <div className="sourcesDrawer">
-            <div className="sourcesHeader">
+      {open && (
+        <div style={{ marginTop: "12px" }}>
+          {sources.map((source, i) => (
+            <a
+              key={i}
+              href={source.url || "#"}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="sourceCard"
+            >
+              <div className="sourceIndex">{i + 1}</div>
               <div>
-                <h3>{sources.length} sources</h3>
-                <p>Sources used to answer this request</p>
+                <div className="sourceHost">{hostname(source.url)}</div>
+                <div className="sourceTitle">{source.title || "Untitled source"}</div>
+                {source.score != null && (
+                  <div className="sourceUrl">Score: {source.score}/100</div>
+                )}
               </div>
-              <button onClick={() => setOpen(false)}>×</button>
-            </div>
-
-            <div className="sourcesList">
-              {sources.map((source, index) => (
-                <a
-                  key={`${source.url || source.title}-${index}`}
-                  className="sourceCard"
-                  href={source.url || "#"}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  <div className="sourceIndex">{index + 1}</div>
-                  <div>
-                    <div className="sourceHost">{hostname(source.url)}</div>
-                    <div className="sourceTitle">
-                      {source.title || source.url || "Untitled source"}
-                    </div>
-                    {source.url ? <div className="sourceUrl">{source.url}</div> : null}
-                  </div>
-                </a>
-              ))}
-            </div>
-          </div>
+            </a>
+          ))}
         </div>
-      ) : null}
+      )}
     </div>
   );
 }

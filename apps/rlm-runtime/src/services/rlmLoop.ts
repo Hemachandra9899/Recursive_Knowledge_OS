@@ -49,6 +49,8 @@ Rules:
 10. Use sections/tables for comparisons or lists.
 11. Add a "Sources" section when source titles/URLs are available.
 12. Treat "mets graph api" as "Meta Graph API". For Meta ads, research "Meta Graph API Marketing API ads platform endpoints".
+13. For API comparison questions, use official docs first and ignore weak sources like YouTube, Postman unless official docs are unavailable.
+14. Do not use source titles as table rows. Rows should be actual products/APIs/entities.
 `.trim();
 
 function buildInitialMessages(input: {

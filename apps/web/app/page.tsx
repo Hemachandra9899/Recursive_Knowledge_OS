@@ -64,10 +64,9 @@ function answerText(job?: ResearchJob) {
   const finalOutput = job.agentRuns?.[0]?.finalOutput as any;
   const final = finalOutput?.final;
 
-  if (typeof final === "string") return final;
-  if (final !== undefined && final !== null) return JSON.stringify(final, null, 2);
+  if (typeof final === "string" && !isGenericAnswer(final)) return final;
 
-  return job.error || report?.content || "";
+  return job.error || "";
 }
 
 function getSources(job?: ResearchJob) {
@@ -94,7 +93,6 @@ function shortId(id: string) {
   return id.slice(0, 8);
 }
 
-/* Word-by-word text streaming component */
 function TypewriterText({ text }: { text: string }) {
   const [displayedText, setDisplayedText] = useState("");
 
@@ -103,11 +101,10 @@ function TypewriterText({ text }: { text: string }) {
       setDisplayedText("");
       return;
     }
-    
-    // Split by spaces/newlines but keep the delimiters to preserve spacing
+
     const tokens = text.split(/(\s+)/);
     setDisplayedText("");
-    
+
     let currentIdx = 0;
     const interval = setInterval(() => {
       setDisplayedText((prev) => {
@@ -118,7 +115,7 @@ function TypewriterText({ text }: { text: string }) {
         }
         return next;
       });
-    }, 40); // 40ms streaming speed
+    }, 40);
 
     return () => clearInterval(interval);
   }, [text]);
@@ -149,11 +146,15 @@ export default function Home() {
   const createProjectMutation = useCreateProject();
   const createResearchJob = useCreateResearchJob(selectedProjectId);
 
-  const { data: activeJobStatus } = useResearchJobStatus(activeJobId);
+  const { data: activeJobStatus, isFetching: statusFetching } =
+    useResearchJobStatus(activeJobId);
   const shouldFetchFullJob =
     activeJobStatus?.status === "COMPLETED" ||
     activeJobStatus?.status === "FAILED";
-  const { data: activeFullJob } = useResearchJob(activeJobId, shouldFetchFullJob);
+  const { data: activeFullJob } = useResearchJob(
+    activeJobId,
+    shouldFetchFullJob
+  );
 
   const selectedProject = useMemo(
     () => projects.find((p) => p.id === selectedProjectId),
@@ -165,7 +166,6 @@ export default function Home() {
     [activeFullJob, jobs, activeJobId]
   );
 
-  // Card Sequential Visibility and Active Tag Calculations
   const stages = useMemo(() => {
     if (!activeJob) {
       return {
@@ -180,7 +180,7 @@ export default function Home() {
 
     const status = activeJob.status?.toLowerCase() || "";
     const runsCount = activeJob.agentRuns?.length || 0;
-    
+
     let query = true;
     let agent = false;
     let vector = false;
@@ -193,12 +193,12 @@ export default function Home() {
     } else if (status === "running") {
       agent = true;
       active = "agent";
-      
+
       if (runsCount > 0) {
         vector = true;
         active = "vector";
       }
-      
+
       const totalSteps = activeJob.agentRuns?.reduce((sum, run) => sum + (run.steps?.length || 0), 0) || 0;
       if (totalSteps > 0) {
         rlm = true;
@@ -276,7 +276,6 @@ export default function Home() {
 
   return (
     <main className="app-container">
-      {/* Collapsible Sidebar */}
       <aside className={`side ${sidebarOpen ? "" : "collapsed"}`}>
         <div className="side-header">
           <div className="brand">
@@ -284,9 +283,9 @@ export default function Home() {
             <p>AI Research OS</p>
           </div>
         </div>
-        
+
         <div className="side-content">
-          <button 
+          <button
             className="primaryButton"
             onClick={() => {
               setActiveJobId("");
@@ -365,9 +364,7 @@ export default function Home() {
         </div>
       </aside>
 
-      {/* Main Workspace Area */}
       <section className="chat-container">
-        {/* Consolidated Top Bar Row */}
         <header className="chatHeader">
           <div className="header-left">
             {!sidebarOpen && (
@@ -388,10 +385,9 @@ export default function Home() {
             </button>
           </div>
 
-          {/* Chat / Dev Mode Switch */}
           <div className="mode-toggle-container">
             <span className={`mode-label ${!devMode ? "active" : ""}`}>Chat</span>
-            <div 
+            <div
               className={`mode-switch ${devMode ? "active" : ""}`}
               onClick={() => setDevMode(!devMode)}
               title="Toggle Chat / Dev Workflow Mode"
@@ -403,12 +399,11 @@ export default function Home() {
             <span className={`mode-label ${devMode ? "active" : ""}`}>Dev</span>
           </div>
 
-          {/* Status dots & Theme Switch */}
           <div className="header-right">
             <div className="status-row">
               {Object.entries(deps).map(([key, value]) => (
-                <div 
-                  key={key} 
+                <div
+                  key={key}
                   className={`status-indicator ${value.includes("ok") ? "ok" : ""}`}
                   title={`${key}: ${value}`}
                 >
@@ -426,12 +421,9 @@ export default function Home() {
           </div>
         </header>
 
-        {/* Workspace Layout Content */}
         <div className="workspace-wrapper">
-          {/* Left Column (Shared between Chat and Dev Mode flowcharts) */}
           <div className="workspace-left">
             {!devMode ? (
-              /* CHAT MODE WORKSPACE */
               <section className="messages-wrapper">
                 {activeJob ? (
                   <div className="messages">
@@ -440,43 +432,46 @@ export default function Home() {
                       <p>{activeJob.question}</p>
                     </div>
                     <div className="bubble assistant">
-                      <b>RLM Forge · {activeJob.status}</b>
+                      <b>RLM Forge</b>
                       <RunProgress status={activeJob.status} />
                       {["completed", "failed"].includes(activeJob.status?.toLowerCase()) ? (
-                        <MessageContent content={answerText(activeJob)} />
+                        <>
+                          <MessageContent content={answerText(activeJob)} />
+                          <SourcesPanel sources={getSources(activeJob)} />
+                          {activeJob.agentRuns?.length ? (
+                            <details className="trace-details">
+                              <summary>Trace Logs ({activeJob.agentRuns.length} runs)</summary>
+                              <pre className="trace-pre">{JSON.stringify(activeJob.agentRuns, null, 2)}</pre>
+                            </details>
+                          ) : null}
+                        </>
                       ) : (
-                        <p className="answerText">{answerText(activeJob) || "Waiting for answer..."}</p>
+                        <p className="answerText text-muted">
+                          {statusFetching ? "Waiting for answer..." : "Running research..."}
+                        </p>
                       )}
-                      <SourcesPanel sources={getSources(activeJob)} />
-                      {activeJob.agentRuns?.length ? (
-                        <details>
-                          <summary>Trace Logs ({activeJob.agentRuns.length} runs)</summary>
-                          <pre>{JSON.stringify(activeJob.agentRuns, null, 2)}</pre>
-                        </details>
-                      ) : null}
                     </div>
                   </div>
                 ) : (
-                  /* Firecrawl inspired Welcome Screen */
                   <div className="welcome-dashboard">
                     <div className="welcome-logo">RLM FORGE</div>
                     <div className="welcome-subtitle">API, Docs and Recursive AI Research Engine</div>
-                    
+
                     <div className="presets-container">
-                      <button 
-                        className="preset-pill" 
+                      <button
+                        className="preset-pill"
                         onClick={() => setQuestion("Deep search recursive runtime logs")}
                       >
                         Search
                       </button>
-                      <button 
-                        className="preset-pill" 
+                      <button
+                        className="preset-pill"
                         onClick={() => setQuestion("Extract structured entities from data sources")}
                       >
                         Extract
                       </button>
-                      <button 
-                        className="preset-pill" 
+                      <button
+                        className="preset-pill"
                         onClick={() => setQuestion("Crawl nested API documentations recursively")}
                       >
                         Crawl
@@ -487,7 +482,6 @@ export default function Home() {
                 {error ? <div className="messages"><div className="error-message">{error}</div></div> : null}
               </section>
             ) : (
-              /* DEV MODE WORKSPACE - LEFT VIEW FLOWCHART */
               <div className="workflow-canvas">
                 {createResearchJob.isPending && (
                   <>
@@ -507,7 +501,6 @@ export default function Home() {
                 )}
 
                 <div className="workflow-nodes">
-                  {/* Stage 5: Final Report (Top) */}
                   <div className={`flow-card-wrapper ${stages.output ? "visible" : ""}`}>
                     <div className={`flow-card ${stages.active === "output" ? "active" : ""}`}>
                       <div className="flow-card-icon" style={{ backgroundColor: "var(--lime)" }}>
@@ -532,7 +525,6 @@ export default function Home() {
 
                   {stages.output && <div className="flow-connector" />}
 
-                  {/* Stage 4: RLM Loop */}
                   <div className={`flow-card-wrapper ${stages.rlm ? "visible" : ""}`}>
                     <div className={`flow-card ${stages.active === "rlm" ? "active" : ""}`}>
                       <div className="flow-card-icon" style={{ backgroundColor: "var(--pink)" }}>
@@ -554,7 +546,6 @@ export default function Home() {
 
                   {stages.rlm && <div className="flow-connector" />}
 
-                  {/* Stage 3: Vector Retrieve */}
                   <div className={`flow-card-wrapper ${stages.vector ? "visible" : ""}`}>
                     <div className={`flow-card ${stages.active === "vector" ? "active" : ""}`}>
                       <div className="flow-card-icon" style={{ backgroundColor: "var(--orange)" }}>
@@ -578,7 +569,6 @@ export default function Home() {
 
                   {stages.vector && <div className="flow-connector" />}
 
-                  {/* Stage 2: Agent Planner */}
                   <div className={`flow-card-wrapper ${stages.agent ? "visible" : ""}`}>
                     <div className={`flow-card ${stages.active === "agent" ? "active" : ""}`}>
                       <div className="flow-card-icon" style={{ backgroundColor: "var(--cyan)" }}>
@@ -601,7 +591,6 @@ export default function Home() {
 
                   {stages.agent && <div className="flow-connector" />}
 
-                  {/* Stage 1: Query Input (Bottom) */}
                   <div className={`flow-card-wrapper ${stages.query ? "visible" : ""}`}>
                     <div className={`flow-card ${stages.active === "query" ? "active" : ""}`}>
                       <div className="flow-card-icon" style={{ backgroundColor: "var(--lime)" }}>
@@ -624,7 +613,6 @@ export default function Home() {
               </div>
             )}
 
-            {/* Composer / Input Box - Nested inside workspace-left so it stays on the left column in Dev Mode! */}
             <footer className="composer-wrapper">
               <div className="composer-box">
                 <textarea
@@ -655,7 +643,6 @@ export default function Home() {
             </footer>
           </div>
 
-          {/* Right Column - Terminal Console (only visible in Dev Mode) */}
           {devMode && (
             <div className="dev-console-panel">
               <div className="console-header">
@@ -699,9 +686,8 @@ export default function Home() {
                       <>
                         <div className="console-line" style={{ color: "var(--lime)" }}>
                           <span className="timestamp">[DONE]</span>
-                          <span>Report generated successfully! Sending output report.</span>
+                          <span>Report generated successfully!</span>
                         </div>
-                        {/* Stream Final Answer inside Sandbox Panel under the whole logs */}
                         <div className="console-answer-section">
                           <div className="console-answer-header">&gt; FINAL REPORT OUTPUT:</div>
                           <TypewriterText text={answerText(activeJob)} />
