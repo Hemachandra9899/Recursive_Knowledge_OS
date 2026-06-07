@@ -90,7 +90,7 @@ Scout is a modular monorepo. Every layer has one job.
 | **Background Worker** | Node.js | Drives job state transitions: `QUEUED → RUNNING → COMPLETED / FAILED` |
 | **Scout Runtime** | Deno + Pyodide (WASM) | Translates LLM reasoning into live Python — calls `search_kb()` and `web_research()` recursively |
 | **Model Layer** | NVIDIA Triton / OpenRouter | Specialized endpoints: reasoning (`glm4.7`), code gen (`qwen3-coder-480b`), embeddings (`nv-embedqa-e5-v5`) |
-| **Web Ingestion** | Firecrawl API | Deep scraping of public documentation into clean, structured Markdown |
+| **Web Ingestion** | Scraping | Deep scraping of public documentation into clean, structured Markdown |
 | **Vector Storage** | Qdrant | High-dimensional semantic search, isolated per `projectId` |
 | **Relational Storage** | Supabase Postgres | Jobs, Documents, Chunks, Reports, and granular Agent Execution traces |
 
