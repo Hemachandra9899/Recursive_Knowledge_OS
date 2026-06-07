@@ -1,160 +1,223 @@
-```markdown
-# Scout
+<div align="center">
 
-Scout is a recursive AI research operating system designed to go beyond traditional static chatbot interactions. Instead of simply passing a user query directly to an LLM, Scout analyzes user intent, dynamically orchestrates tools, executes deep web research when internal project knowledge is missing, stores and vectorizes newly ingested data on the fly, and runs a programmable, sandboxed Python environment to synthesize deeply grounded, source-backed answers.
-
----
-
-## 💡 The Mental Model
-
+<br/>
 
 ```
-
-Traditional Chatbot:  User Question ──> LLM Answer
-
-Scout:                User Question
-│
-├──> Intent Detection & Strategy Planning
-├──> Project Knowledge Base Search (Semantic Search)
-├──> Web Research / Deep Crawling (If knowledge is missing)
-├──> Vector Ingestion & Real-time Chunk Embeddings
-├──> Isolated Python Execution (Pyodide Pipeline)
-└──> Answer Synthesis & Source Attribution
-
+███████╗ ██████╗ ██████╗ ██╗   ██╗████████╗
+██╔════╝██╔════╝██╔═══██╗██║   ██║╚══██╔══╝
+███████╗██║     ██║   ██║██║   ██║   ██║   
+╚════██║██║     ██║   ██║██║   ██║   ██║   
+███████║╚██████╗╚██████╔╝╚██████╔╝   ██║   
+╚══════╝ ╚═════╝ ╚═════╝  ╚═════╝    ╚═╝   
 ```
 
----
+**A recursive AI research operating system.**  
+Not a chatbot. A research agent that thinks before it speaks.
 
-## 🏗️ System Architecture
+<br/>
 
-Scout is built as a modular monorepo containing the following tightly decoupled layers:
+![Next.js](https://img.shields.io/badge/Next.js-000000?style=flat-square&logo=nextdotjs&logoColor=white)
+![Fastify](https://img.shields.io/badge/Fastify-000000?style=flat-square&logo=fastify&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white)
+![Deno](https://img.shields.io/badge/Deno-000000?style=flat-square&logo=deno&logoColor=white)
+![Redis](https://img.shields.io/badge/Redis-DC382D?style=flat-square&logo=redis&logoColor=white)
+![Qdrant](https://img.shields.io/badge/Qdrant-FF4A6E?style=flat-square&logo=data:image/svg+xml;base64,&logoColor=white)
+![Supabase](https://img.shields.io/badge/Supabase-3ECF8E?style=flat-square&logo=supabase&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat-square&logo=docker&logoColor=white)
 
-* **Frontend UI (Next.js):** A clean, professional research-oriented chat interface focused on content readability, real-time job state tracking, expandable source drawers, and detailed runtime trace logs.
-* **Central API (Fastify + Prisma):** The orchestrator managing project scopes, background research job dispatches, semantic document chunks, and tool routes.
-* **Task Queue (Redis + BullMQ):** Decouples long-running asynchronous research workflows from API request-response lifecycles, enabling deterministic status polling.
-* **Core Background Worker (Node.js):** Manages live job transitions (`QUEUED` -> `RUNNING` -> `COMPLETED`/`FAILED`), logging granular steps to the database.
-* **The Heart: Scout Runtime (Deno + Pyodide):** An isolated runtime that translates LLM reasoning into dynamic Python scripts executed safely via Pyodide. Supports recursive asynchronous calls to tools like `search_kb()` and `web_research()`.
-* **Model Layer (NVIDIA Service / OpenRouter):** Dedicated service handling specialized model endpoints for reasoning (`glm4.7`), code generation (`qwen3-coder-480b`), and high-performance embedding (`nv-embedqa-e5-v5`).
-* **Web Ingestion Engine (Firecrawl):** Executes deep scraping and automated public web queries to parse unstructured documentation into rich, valid Markdown.
-* **Vector Storage (Qdrant):** Handles high-dimensional semantic search across project workspaces, isolating indices by `projectId`.
-* **Relational Storage (Supabase Postgres):** Houses structured entities including Jobs, Documents, relational Chunks, Reports, and granular Agent Execution traces.
+<br/>
 
----
-
-## 🛠️ Tech Stack
-
-| Component | Technology |
-| :--- | :--- |
-| **Frontend** | Next.js (App Router), Tailwind CSS |
-| **Backend API** | Fastify, TypeScript, Prisma ORM |
-| **Distributed Queue** | Redis, BullMQ |
-| **Execution Sandbox** | Deno, Pyodide (WASM Python) |
-| **Model Hosting** | NVIDIA Triton / OpenRouter API |
-| **Vector Engine** | Qdrant DB |
-| **Primary Database** | Supabase Postgres |
-| **Web Scraping** | Firecrawl API |
+</div>
 
 ---
 
-## 🚀 Quick Start & Deployment
+## The Problem with Chatbots
 
-Scout is fully containerized. You can build and initialize the entire ecosystem—including all background databases, workers, runtime environments, API layers, and the UI—using either of the following methods.
+Every AI assistant today does the same thing:
+
+```
+You ask → LLM answers
+```
+
+It sounds confident. It's often wrong. It never shows its work.
+
+**Scout is different.**
+
+---
+
+## How Scout Thinks
+
+```
+You ask a question
+        │
+        ▼
+  Intent Detection          ← What are you actually asking?
+        │
+        ▼
+  Knowledge Base Search     ← Do we already know this? (Semantic)
+        │
+        ├── HIT  ──────────────────────────────────────────────┐
+        │                                                       │
+        ▼                                                       │
+  Web Research + Deep Crawl ← Go find it. Crawl. Parse.        │
+        │                                                       │
+        ▼                                                       │
+  Vector Ingestion          ← Embed it. Store it. Never ask    │
+  & Real-time Chunking        the internet twice.              │
+        │                                                       │
+        └──────────────────────────┬────────────────────────────┘
+                                   │
+                                   ▼
+                      Pyodide Execution Sandbox  ← Isolated Python.
+                                   │               Dynamic reasoning.
+                                   ▼
+                         Answer Synthesis        ← Grounded. Cited.
+                      & Source Attribution         Source-backed.
+```
+
+Scout doesn't guess. It researches, indexes, executes, then answers.
+
+---
+
+## Architecture
+
+Scout is a modular monorepo. Every layer has one job.
+
+| Layer | Technology | Responsibility |
+|:---|:---|:---|
+| **Frontend UI** | Next.js (App Router), Tailwind CSS | Research-oriented chat interface with live job tracking, source drawers, and runtime trace logs |
+| **Central API** | Fastify, TypeScript, Prisma ORM | Orchestrates project scopes, dispatches background jobs, manages semantic document chunks |
+| **Task Queue** | Redis, BullMQ | Decouples long-running research from request lifecycles — deterministic status polling |
+| **Background Worker** | Node.js | Drives job state transitions: `QUEUED → RUNNING → COMPLETED / FAILED` |
+| **Scout Runtime** | Deno + Pyodide (WASM) | Translates LLM reasoning into live Python — calls `search_kb()` and `web_research()` recursively |
+| **Model Layer** | NVIDIA Triton / OpenRouter | Specialized endpoints: reasoning (`glm4.7`), code gen (`qwen3-coder-480b`), embeddings (`nv-embedqa-e5-v5`) |
+| **Web Ingestion** | Firecrawl API | Deep scraping of public documentation into clean, structured Markdown |
+| **Vector Storage** | Qdrant | High-dimensional semantic search, isolated per `projectId` |
+| **Relational Storage** | Supabase Postgres | Jobs, Documents, Chunks, Reports, and granular Agent Execution traces |
+
+---
+
+## Getting Started
 
 ### Prerequisites
 
-Ensure you have the following installed on your machine:
-* [Docker](https://www.docker.com/products/docker-desktop/) (Engine version 20.10.0 or higher)
-* [Docker Compose](https://docs.docker.com/compose/) (v2.0.0 or higher)
+- [Docker](https://www.docker.com/products/docker-desktop/) ≥ 20.10.0  
+- [Docker Compose](https://docs.docker.com/compose/) ≥ v2.0.0
 
-### Method 1: Using the Unified Startup Script
-
-A convenience shell script is provided in the root directory to clean, rebuild, and spin up all services simultaneously with a single command.
-
-1. Give execution permissions to the script:
-   ```bash
-   chmod +x ./run.sh
-
-```
-
-2. Execute the script:
-```bash
-./run.sh
-
-```
-
-
-
-### Method 2: Standard Docker Compose Commands
-
-Alternatively, you can run the build pipeline and bring up the images directly using native Docker commands:
-
-```bash
-# Build all system images from the monorepo context
-docker-compose build
-
-# Spin up all storage layers, workers, engines, and gateways simultaneously
-docker-compose up
-
-```
-
-To run the services in detached (background) mode, append the `-d` flag:
-
-```bash
-docker-compose up -d
-
-```
-
-Once the containers are running, all services will automatically interconnect, run database migrations, and become fully operational.
+That's it. Everything else runs inside containers.
 
 ---
 
-## 📡 Core API Endpoints
+### Option 1 — One Command
+
+```bash
+chmod +x ./run.sh && ./run.sh
+```
+
+Cleans, rebuilds, and spins up the full stack in one shot.
+
+---
+
+### Option 2 — Docker Compose
+
+```bash
+# Build all service images
+docker-compose build
+
+# Start everything
+docker-compose up
+
+# Or in detached mode
+docker-compose up -d
+```
+
+Once containers are live, services auto-interconnect, migrations run, and the system is fully operational.
+
+---
+
+## API Reference
 
 ### System Health
 
-* `GET /health` — Check core gateway status.
-* `GET /health/deps` — Verify background connectivity (Postgres, Qdrant, Redis).
+```
+GET  /health          →  Core gateway status
+GET  /health/deps     →  Dependency check (Postgres, Qdrant, Redis)
+```
 
 ### Project Management
 
-* `POST /projects` — Initialize a new isolated workspace project.
-* `GET /projects` — Fetch all active projects.
-* `GET /projects/:id/jobs` — View execution history for a given project scope.
+```
+POST /projects              →  Create a new isolated workspace
+GET  /projects              →  List all active projects
+GET  /projects/:id/jobs     →  Execution history for a project
+```
 
 ### Research Engine
 
-* `POST /research-jobs` — Dispatch a raw question to the queue (returns a `jobId`).
-* `GET /research-jobs/:id` — Poll state, trace steps, and progress logs for an active job.
+```
+POST /research-jobs         →  Queue a question (returns jobId)
+GET  /research-jobs/:id     →  Poll state, steps, and progress
+```
 
-### Data & Knowledge Exploration
+### Knowledge Exploration
 
-* `GET /projects/:id/documents` — List all documents scraped into a project.
-* `GET /documents/:id/chunks` — View sub-chunks and text parsing blocks.
-* `GET /knowledge/vector/status` — Inspect overall collection status in Qdrant.
+```
+GET  /projects/:id/documents       →  Documents indexed in a project
+GET  /documents/:id/chunks         →  Sub-chunks and parsed text blocks
+GET  /knowledge/vector/status      →  Qdrant collection health
+```
 
 ---
 
-## 🔬 Testing the System End-to-End
+## End-to-End Test
 
-To evaluate the recursive workflow, semantic fallback mechanisms, vector generation, and markdown matrix synthesis, execute the following benchmark query within the user interface:
+To trigger the full pipeline — web crawl, ingestion, semantic search, Python execution, and synthesis — run this query in the UI:
 
-### What Happens Behind the Scenes:
+> *"Compare Meta Marketing API, Google Ads API, and TikTok Ads API for building an ads automation platform. What data can I access, what can I automate, what are the required permissions, rate-limit risks, and the best MVP implementation plan?"*
 
-1. **Intent Analysis:** Scout identifies that public documentation is required, multiple external platforms are being compared, and structured Markdown matrix tables are requested.
-2. **Knowledge Base Fallback:** The runtime checks Qdrant for existing records. Finding none, it systematically issues web search targets via Firecrawl.
-3. **Ingestion Pipeline:** Documentation tables are mapped, embedded via the embedding engine, split structurally into clean chunks, and indexed into Qdrant.
-4. **Execution Loop:** Pyodide runs dynamic evaluation scripts to parse comparative fields.
-5. **Synthesis:** The Answer Synthesizer aggregates data points into a clear, unified comparison table, appending direct source references at the bottom of the interface.
+**What happens:**
+
+1. **Intent Analysis** — Scout detects multi-platform comparison, flags need for external documentation
+2. **KB Fallback** — Qdrant returns empty; Firecrawl dispatched to crawl official API docs
+3. **Ingestion** — Tables parsed, embedded, split into chunks, indexed into Qdrant
+4. **Execution Loop** — Pyodide runs comparative evaluation scripts dynamically
+5. **Synthesis** — A clean comparison matrix surfaces with direct source links
 
 ---
 
-## 🗺️ Next Up on the Roadmap
+## Roadmap
 
-* [ ] **Streamlined UI Realignment:** Clean, distraction-free typography with definitive source drawers and hidden trace layouts.
-* [ ] **SSE Token Streaming:** Complete implementation of Server-Sent Events for live token-by-token text generation and step metrics.
-* [ ] **Domain Prioritization:** Source ranking filters to elevate official developers subdomains (`developers.facebook.com`, `ads.tiktok.com`) above secondary discussion blogs.
-* [ ] **Entity-Claim Knowledge Graphs:** Deeper extraction of explicit code entities and transactional relations stored as Graph networks.
+- [ ] **Distraction-free UI** — Typography-first redesign, collapsible source drawers, hidden trace layouts by default
+- [ ] **SSE Token Streaming** — Live token-by-token generation with real-time step metrics
+- [ ] **Domain Prioritization** — Source ranking that elevates official developer subdomains over secondary blogs
+- [ ] **Entity-Claim Knowledge Graphs** — Extract explicit code entities and store relational knowledge as graph networks
+
+---
+
+## Project Structure
 
 ```
-
+scout/
+├── apps/
+│   ├── web/              # Next.js frontend
+│   └── api/              # Fastify API gateway
+├── workers/
+│   ├── core/             # Background job runner (Node.js)
+│   └── runtime/          # Scout execution sandbox (Deno + Pyodide)
+├── services/
+│   └── models/           # NVIDIA / OpenRouter model service
+├── docker-compose.yml
+└── run.sh
 ```
+
+---
+
+<div align="center">
+
+<br/>
+
+Built to think deeper. Research further. Answer better.
+
+<br/>
+
+</div>
