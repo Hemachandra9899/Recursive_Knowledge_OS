@@ -6,3 +6,6 @@ langchain-core==0.3.29
 langchain-nvidia-ai-endpoints==0.3.7
 markitdown[all]
 python-multipart==0.0.20
+scrapling
+beautifulsoup4==4.12.3
+markdownify==0.13.1

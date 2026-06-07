@@ -1,0 +1,11 @@
+{
+  "name": "@rlm-forge/clients",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.js",
+    "./model-service.client": "./src/model-service.client.js",
+    "./model-service.client.js": "./src/model-service.client.js"
+  }
+}

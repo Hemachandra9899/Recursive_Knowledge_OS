@@ -1,12 +1,21 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { api, Project, ProjectDocument, ResearchJob } from "../lib/api";
+import { useQuery } from "@tanstack/react-query";
+import { api, ProjectDocument, ResearchJob } from "../lib/api";
 import { FileUploadPanel } from "../components/FileUploadPanel";
 import { DocumentsPanel } from "../components/DocumentsPanel";
 import { MessageContent } from "../components/MessageContent";
 import { SourcesPanel } from "../components/SourcesPanel";
 import { RunProgress } from "../components/RunProgress";
+import { useProjects, useCreateProject } from "../hooks/useProjects";
+import { useProjectJobs } from "../hooks/useProjectJobs";
+import { useProjectDocuments } from "../hooks/useDocuments";
+import {
+  useCreateResearchJob,
+  useResearchJobStatus,
+  useResearchJob,
+} from "../hooks/useResearchJob";
 
 type Theme = "dark" | "light";
 
@@ -121,18 +130,30 @@ export default function Home() {
   const [theme, setTheme] = useState<Theme>("dark");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [devMode, setDevMode] = useState(false);
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [jobs, setJobs] = useState<ResearchJob[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState("");
-  const [documents, setDocuments] = useState<ProjectDocument[]>([]);
   const [activeJobId, setActiveJobId] = useState("");
   const [projectName, setProjectName] = useState("RLM Research");
   const [question, setQuestion] = useState(
     "Explain what RLM Forge is in simple words."
   );
-  const [deps, setDeps] = useState<Record<string, string>>({});
   const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
+
+  const { data: deps = {} } = useQuery({
+    queryKey: ["health", "deps"],
+    queryFn: api.deps,
+  });
+  const { data: projects = [] } = useProjects();
+  const { data: jobs = [] } = useProjectJobs(selectedProjectId);
+  const { data: documents = [] } = useProjectDocuments(selectedProjectId);
+
+  const createProjectMutation = useCreateProject();
+  const createResearchJob = useCreateResearchJob(selectedProjectId);
+
+  const { data: activeJobStatus } = useResearchJobStatus(activeJobId);
+  const shouldFetchFullJob =
+    activeJobStatus?.status === "COMPLETED" ||
+    activeJobStatus?.status === "FAILED";
+  const { data: activeFullJob } = useResearchJob(activeJobId, shouldFetchFullJob);
 
   const selectedProject = useMemo(
     () => projects.find((p) => p.id === selectedProjectId),
@@ -140,8 +161,8 @@ export default function Home() {
   );
 
   const activeJob = useMemo(
-    () => jobs.find((j) => j.id === activeJobId),
-    [jobs, activeJobId]
+    () => activeFullJob || jobs.find((j) => j.id === activeJobId),
+    [activeFullJob, jobs, activeJobId]
   );
 
   // Card Sequential Visibility and Active Tag Calculations
@@ -199,28 +220,6 @@ export default function Home() {
     return { query, agent, vector, rlm, output, active };
   }, [activeJob]);
 
-  async function refreshProjects() {
-    const rows = await api.listProjects();
-    setProjects(rows);
-    if (!selectedProjectId && rows[0]) setSelectedProjectId(rows[0].id);
-  }
-
-  async function refreshJobs(pid = selectedProjectId) {
-    if (!pid) return;
-    const rows = await api.listProjectJobs(pid);
-    setJobs(rows);
-  }
-
-  async function refreshDeps() {
-    setDeps(await api.deps());
-  }
-
-  async function refreshDocuments(pid = selectedProjectId) {
-    if (!pid) return;
-    const rows = await api.listProjectDocuments(pid);
-    setDocuments(rows);
-  }
-
   function askDocument(doc: ProjectDocument) {
     const title = doc.title || doc.sourceUrl || "the uploaded document";
     setQuestion(
@@ -230,33 +229,32 @@ export default function Home() {
 
   async function createProject() {
     setError("");
-    const project = await api.createProject({
-      name: projectName || "Untitled Project",
-      description: "Created from RLM Forge UI",
-    });
-    setSelectedProjectId(project.id);
-    await refreshProjects();
+    try {
+      const project = await createProjectMutation.mutateAsync({
+        name: projectName || "Untitled Project",
+        description: "Created from RLM Forge UI",
+      });
+      setSelectedProjectId(project.id);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
   }
 
   async function generate() {
     if (!question.trim()) return;
-    
+
     let pid = selectedProjectId || projects[0]?.id;
     if (!pid) {
       setError("Please create or select a project first.");
       return;
     }
 
-    setBusy(true);
     setError("");
     try {
-      const created = await api.createResearchJob({ projectId: pid, question });
+      const created = await createResearchJob.mutateAsync(question);
       setActiveJobId(created.jobId);
-      await refreshJobs(pid);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
     }
   }
 
@@ -271,29 +269,10 @@ export default function Home() {
   }, [theme]);
 
   useEffect(() => {
-    refreshProjects().catch((e) => setError(String(e)));
-    refreshDeps().catch(() => {});
-  }, []);
-
-  useEffect(() => {
     if (selectedProjectId) {
-      refreshJobs(selectedProjectId).catch((e) => setError(String(e)));
-      refreshDocuments(selectedProjectId).catch((e) => setError(String(e)));
       setActiveJobId("");
     }
   }, [selectedProjectId]);
-
-  useEffect(() => {
-    if (!activeJobId || !selectedProjectId) return;
-    const timer = setInterval(async () => {
-      const job = await api.getResearchJob(activeJobId);
-      setJobs((prev) => {
-        const rest = prev.filter((item) => item.id !== job.id);
-        return [job, ...rest];
-      });
-    }, 2500);
-    return () => clearInterval(timer);
-  }, [activeJobId, selectedProjectId]);
 
   return (
     <main className="app-container">
@@ -349,7 +328,6 @@ export default function Home() {
             <>
               <FileUploadPanel
                 projectId={selectedProjectId}
-                onUploaded={() => refreshDocuments(selectedProjectId)}
               />
 
               <DocumentsPanel
@@ -511,7 +489,7 @@ export default function Home() {
             ) : (
               /* DEV MODE WORKSPACE - LEFT VIEW FLOWCHART */
               <div className="workflow-canvas">
-                {busy && (
+                {createResearchJob.isPending && (
                   <>
                     <div className="cloud-code-particle" style={{ left: "42%", animationDelay: "0s" }}>
                       {"const rlm = new RLM()"}
@@ -668,9 +646,9 @@ export default function Home() {
                   <button
                     className="generate-btn"
                     onClick={generate}
-                    disabled={busy || !question.trim()}
+                    disabled={createResearchJob.isPending || !question.trim()}
                   >
-                    {busy ? "Running..." : "Generate"}
+                    {createResearchJob.isPending ? "Running..." : "Generate"}
                   </button>
                 </div>
               </div>

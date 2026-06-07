@@ -25,7 +25,7 @@ services:
 
   rlm-runtime:
     build:
-      context: ./packages/rlm-runtime
+      context: ./apps/rlm-runtime
     container_name: rlm-forge-runtime
     env_file:
       - .env
@@ -58,7 +58,7 @@ services:
   worker:
     build:
       context: .
-      dockerfile: apps/api/Dockerfile
+      dockerfile: apps/worker/Dockerfile
     container_name: rlm-forge-worker
     env_file:
       - .env
@@ -67,7 +67,6 @@ services:
       QDRANT_URL: http://qdrant:6333
       MODEL_SERVICE_URL: http://model-service:8100
       RLM_RUNTIME_URL: http://rlm-runtime:8787
-    command: npm run worker
     depends_on:
       - api
       - redis

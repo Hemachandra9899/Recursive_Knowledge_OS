@@ -1,45 +1,15 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { api, IngestFileResponse } from "../lib/api";
+import { useRef } from "react";
+import { useUploadFile } from "../hooks/useDocuments";
 
 export function FileUploadPanel({
   projectId,
-  onUploaded,
 }: {
   projectId: string;
-  onUploaded: () => void;
 }) {
   const inputRef = useRef<HTMLInputElement | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const [lastUpload, setLastUpload] = useState<IngestFileResponse | null>(null);
-  const [error, setError] = useState("");
-
-  async function upload(file?: File) {
-    if (!file || !projectId) return;
-
-    setUploading(true);
-    setError("");
-    setLastUpload(null);
-
-    try {
-      const result = await api.ingestFile({
-        projectId,
-        file,
-      });
-
-      setLastUpload(result);
-      onUploaded();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setUploading(false);
-
-      if (inputRef.current) {
-        inputRef.current.value = "";
-      }
-    }
-  }
+  const uploadFile = useUploadFile(projectId);
 
   return (
     <section className="uploadPanel">
@@ -48,9 +18,9 @@ export function FileUploadPanel({
       <button
         className="uploadButton"
         onClick={() => inputRef.current?.click()}
-        disabled={!projectId || uploading}
+        disabled={!projectId || uploadFile.isPending}
       >
-        {uploading ? "Uploading..." : "Upload file"}
+        {uploadFile.isPending ? "Uploading..." : "Upload file"}
       </button>
 
       <input
@@ -58,27 +28,31 @@ export function FileUploadPanel({
         type="file"
         hidden
         accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.csv,.txt,.md,.html,.json,.xml"
-        onChange={(e) => upload(e.target.files?.[0])}
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) uploadFile.mutate(file);
+          if (inputRef.current) inputRef.current.value = "";
+        }}
       />
 
       <p className="uploadHint">
         PDF, DOCX, PPTX, XLSX, CSV, TXT, HTML
       </p>
 
-      {lastUpload ? (
+      {uploadFile.data ? (
         <div className="uploadResult">
-          <b>{lastUpload.title || lastUpload.filename}</b>
+          <b>{uploadFile.data.title || uploadFile.data.filename}</b>
           <span>
-            {lastUpload.chunksTotal} chunks · {lastUpload.embeddedChunks} embedded
-            {lastUpload.deduped ? " · already existed" : ""}
+            {uploadFile.data.chunksTotal} chunks · {uploadFile.data.embeddedChunks} embedded
+            {uploadFile.data.deduped ? " · already existed" : ""}
           </span>
-          {lastUpload.embeddingError ? (
-            <small className="bad">Embedding issue: {lastUpload.embeddingError}</small>
+          {uploadFile.data.embeddingError ? (
+            <small className="bad">Embedding issue: {uploadFile.data.embeddingError}</small>
           ) : null}
         </div>
       ) : null}
 
-      {error ? <div className="uploadError">{error}</div> : null}
+      {uploadFile.error ? <div className="uploadError">{uploadFile.error.message}</div> : null}
     </section>
   );
 }

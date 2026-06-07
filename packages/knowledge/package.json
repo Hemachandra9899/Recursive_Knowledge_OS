@@ -1,0 +1,29 @@
+{
+  "name": "@rlm-forge/knowledge",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.js",
+    "./text/chunk-text": "./src/text/chunk-text.js",
+    "./text/chunk-text.js": "./src/text/chunk-text.js",
+    "./ingestion/ingest-markdown-document": "./src/ingestion/ingest-markdown-document.js",
+    "./ingestion/ingest-markdown-document.js": "./src/ingestion/ingest-markdown-document.js",
+    "./scrapers/firecrawl.scraper": "./src/scrapers/firecrawl.scraper.js",
+    "./scrapers/firecrawl.scraper.js": "./src/scrapers/firecrawl.scraper.js",
+    "./scrapers/scrapling.scraper": "./src/scrapers/scrapling.scraper.js",
+    "./scrapers/scrapling.scraper.js": "./src/scrapers/scrapling.scraper.js",
+    "./research/research-planner": "./src/research/research-planner.js",
+    "./research/research-planner.js": "./src/research/research-planner.js",
+    "./research/official-docs-planner": "./src/research/official-docs-planner.js",
+    "./research/official-docs-planner.js": "./src/research/official-docs-planner.js",
+    "./research/source-quality": "./src/research/source-quality.js",
+    "./research/source-quality.js": "./src/research/source-quality.js"
+  },
+  "dependencies": {
+    "@rlm-forge/clients": "*",
+    "@rlm-forge/database": "*",
+    "@rlm-forge/retrieval": "*",
+    "@rlm-forge/queue": "*"
+  }
+}

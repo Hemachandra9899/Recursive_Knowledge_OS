@@ -1,0 +1,20 @@
+{
+  "name": "@rlm-forge/retrieval",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.js",
+    "./qdrant/qdrant.client": "./src/qdrant/qdrant.client.js",
+    "./qdrant/qdrant.client.js": "./src/qdrant/qdrant.client.js",
+    "./qdrant/qdrant.points": "./src/qdrant/qdrant.points.js",
+    "./qdrant/qdrant.points.js": "./src/qdrant/qdrant.points.js",
+    "./qdrant/qdrant.collection": "./src/qdrant/qdrant.collection.js",
+    "./qdrant/qdrant.collection.js": "./src/qdrant/qdrant.collection.js"
+  },
+  "dependencies": {
+    "@qdrant/js-client-rest": "^1.18.0",
+    "@rlm-forge/database": "*",
+    "@rlm-forge/clients": "*"
+  }
+}

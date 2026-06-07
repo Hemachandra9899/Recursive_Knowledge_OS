@@ -1,0 +1,14 @@
+{
+  "name": "@rlm-forge/database",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.js",
+    "./prisma": "./src/prisma.js",
+    "./prisma.js": "./src/prisma.js"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.1.0"
+  }
+}

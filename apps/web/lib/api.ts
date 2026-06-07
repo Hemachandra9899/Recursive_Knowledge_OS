@@ -46,6 +46,13 @@ export type ResearchJob = {
   agentRuns?: AgentRun[];
 };
 
+export type ResearchJobStatus = {
+  id: string;
+  status: string;
+  error?: string | null;
+  updatedAt: string;
+};
+
 export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
     ...init,
@@ -103,6 +110,8 @@ export const api = {
     ),
   getResearchJob: (jobId: string) =>
     request<ResearchJob>(`/research-jobs/${jobId}`),
+  getResearchJobStatus: (jobId: string) =>
+    request<ResearchJobStatus>(`/research-jobs/${jobId}/status`),
 
   listProjectDocuments: (projectId: string) =>
     request<ProjectDocument[]>(`/projects/${projectId}/documents`),
