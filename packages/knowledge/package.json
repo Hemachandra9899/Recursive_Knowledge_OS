@@ -26,7 +26,21 @@
     "./research/resource-planner": "./src/research/resource-planner.js",
     "./research/resource-planner.js": "./src/research/resource-planner.js",
     "./research/evidence-pack": "./src/research/evidence-pack.js",
-    "./research/evidence-pack.js": "./src/research/evidence-pack.js"
+    "./research/evidence-pack.js": "./src/research/evidence-pack.js",
+    "./research/crawl-manager": "./src/research/crawl-manager.js",
+    "./research/crawl-manager.js": "./src/research/crawl-manager.js",
+    "./research/research-orchestrator": "./src/research/research-orchestrator.js",
+    "./research/research-orchestrator.js": "./src/research/research-orchestrator.js",
+    "./agents/types": "./src/agents/types.js",
+    "./agents/types.js": "./src/agents/types.js",
+    "./agents/search-planner.agent": "./src/agents/search-planner.agent.js",
+    "./agents/search-planner.agent.js": "./src/agents/search-planner.agent.js",
+    "./agents/memory-agent": "./src/agents/memory-agent.js",
+    "./agents/memory-agent.js": "./src/agents/memory-agent.js",
+    "./memory/memory-types": "./src/memory/memory-types.js",
+    "./memory/memory-types.js": "./src/memory/memory-types.js",
+    "./memory/memory-manager": "./src/memory/memory-manager.js",
+    "./memory/memory-manager.js": "./src/memory/memory-manager.js"
   },
   "dependencies": {
     "@rlm-forge/clients": "*",

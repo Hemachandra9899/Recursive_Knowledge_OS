@@ -4,7 +4,9 @@ import {
   normalizeResearchQuery,
   planResources,
   preview,
+  ResearchOrchestrator,
   scrapePageWithScrapling,
+  crawlSiteWithScrapling,
   scrapeUrl,
 } from "@rlm-forge/knowledge";
 
@@ -22,27 +24,45 @@ const MODEL_SERVICE_URL =
   process.env.MODEL_SERVICE_URL || "http://model-service:8100";
 
 export async function crawlUrl(input: CrawlUrlInput) {
-  const scraped = await scrapeUrl(input.url);
-
-  const ingested = await ingestMarkdownDocument({
-    projectId: input.projectId,
-    sourceUrl: scraped.url,
-    title: scraped.title,
-    markdown: scraped.markdown,
-    metadata: scraped.metadata,
+  const crawl = await crawlSiteWithScrapling({
+    rootUrl: input.url,
+    maxPages: input.maxPages ?? 1,
+    maxDepth: input.maxDepth ?? 0,
+    mode: "auto",
+    aiTargeted: true,
+    sameDomainOnly: true,
   });
+
+  const documents = [];
+
+  for (const page of crawl.pages) {
+    const ingested = await ingestMarkdownDocument({
+      projectId: input.projectId,
+      sourceUrl: page.url,
+      title: page.title,
+      markdown: page.markdown,
+      metadata: page.metadata,
+    });
+
+    documents.push({
+      url: page.url,
+      title: page.title,
+      documentId: ingested.document.id,
+      chunksCreated: ingested.chunksCreated,
+      chunksTotal: ingested.chunksTotal,
+      embeddedChunks: ingested.embeddedChunks,
+      embeddingError: ingested.embeddingError,
+      deduped: ingested.deduped,
+      markdownPreview: preview(page.markdown, 1200),
+    });
+  }
 
   return {
     status: "ok",
-    url: scraped.url,
-    title: scraped.title,
-    documentId: ingested.document.id,
-    chunksCreated: ingested.chunksCreated,
-    chunksTotal: ingested.chunksTotal,
-    embeddedChunks: ingested.embeddedChunks,
-    embeddingError: ingested.embeddingError,
-    deduped: ingested.deduped,
-    markdownPreview: preview(scraped.markdown, 2000),
+    rootUrl: crawl.rootUrl,
+    documents,
+    failedUrls: crawl.failedUrls,
+    pagesCrawled: documents.length,
   };
 }
 
@@ -93,6 +113,18 @@ export async function planResearchResources(input: PlanResourcesInput) {
 }
 
 export async function webResearch(input: WebResearchInput) {
+  if (input.useOrchestrator) {
+    const orchestrator = new ResearchOrchestrator();
+    return orchestrator.run({
+      projectId: input.projectId,
+      query: input.query,
+      maxSources: input.maxResults,
+      maxPagesPerSource: input.maxPagesPerSource,
+      maxTotalPages: input.maxTotalPages,
+      maxDepth: input.maxDepth,
+    });
+  }
+
   const maxSources = input.maxResults ?? 10;
 
   const plan = await planResources({
