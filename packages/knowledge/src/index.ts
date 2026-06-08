@@ -10,6 +10,8 @@ export * from "./research/search-provider.js";
 export * from "./research/resource-planner.js";
 export * from "./research/evidence-pack.js";
 export * from "./research/answer-synthesizer.js";
+export * from "./research/answer-mode.js";
+export * from "./research/answer-renderers.js";
 export * from "./research/citation-verifier.js";
 export * from "./research/evidence-extractor.js";
 
