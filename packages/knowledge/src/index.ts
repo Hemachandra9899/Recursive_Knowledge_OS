@@ -8,6 +8,8 @@ export * from "./research/source-ranker.js";
 export * from "./research/search-provider.js";
 export * from "./research/resource-planner.js";
 export * from "./research/evidence-pack.js";
+export * from "./research/citation-verifier.js";
+export * from "./research/evidence-extractor.js";
 
 export * from "./scrapers/firecrawl.scraper.js";
 export * from "./scrapers/scrapling.scraper.js";

@@ -31,12 +31,30 @@ export type RankedResource = ResourceCandidate & {
 };
 
 export type EvidenceItem = {
+  claim: string;
+  quote: string;
   title: string;
   url: string;
+  section?: string;
   product?: string;
   domain?: string;
   tier: SourceTier;
-  text: string;
+  confidence: number;
+  entities: string[];
+  reason: string;
+  text?: string;
+  metadata?: Record<string, unknown>;
+};
+
+export type CitationVerificationStatus =
+  | "supported"
+  | "weak"
+  | "unsupported";
+
+export type CitationVerification = {
+  status: CitationVerificationStatus;
+  claim: string;
+  supportingUrls: string[];
   reason: string;
 };
 
@@ -45,10 +63,16 @@ export type EvidencePack = {
   useCase: SourceUseCase;
   resourcesPlanned: RankedResource[];
   evidence: EvidenceItem[];
+  citationVerification: CitationVerification[];
   coverage: {
     hasEvidence: boolean;
     sourceCount: number;
+    claimCount: number;
+    uniqueSourceCount: number;
     officialSourceCount: number;
+    supportedClaimCount: number;
+    weakClaimCount: number;
+    unsupportedClaimCount: number;
     missing: string[];
   };
 };

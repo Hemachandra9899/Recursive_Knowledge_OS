@@ -40,7 +40,11 @@
     "./memory/memory-types": "./src/memory/memory-types.js",
     "./memory/memory-types.js": "./src/memory/memory-types.js",
     "./memory/memory-manager": "./src/memory/memory-manager.js",
-    "./memory/memory-manager.js": "./src/memory/memory-manager.js"
+    "./memory/memory-manager.js": "./src/memory/memory-manager.js",
+    "./research/evidence-extractor": "./src/research/evidence-extractor.js",
+    "./research/evidence-extractor.js": "./src/research/evidence-extractor.js",
+    "./research/citation-verifier": "./src/research/citation-verifier.js",
+    "./research/citation-verifier.js": "./src/research/citation-verifier.js"
   },
   "dependencies": {
     "@rlm-forge/clients": "*",

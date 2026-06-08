@@ -7,6 +7,7 @@ import {
   ResearchOrchestrator,
   scrapePageWithScrapling,
   crawlSiteWithScrapling,
+  extractEvidenceFromPage,
   scrapeUrl,
 } from "@rlm-forge/knowledge";
 
@@ -203,15 +204,50 @@ export async function webResearch(input: WebResearchInput) {
       deduped: ingested.deduped,
     });
 
-    evidence.push({
+    const extractedEvidence = extractEvidenceFromPage({
       title: scraped.title || resource.title,
       url: scraped.url,
+      markdown: scraped.markdown,
       product: resource.product,
       domain: resource.domain,
       tier: resource.tier,
-      text: preview(scraped.markdown, 1800),
       reason: resource.reason,
+      metadata: {
+        sourceType: resource.source,
+        matchedScore: resource.score,
+        matchedBy: resource.matchedBy,
+        normalizedQuery: plan.normalizedQuery,
+      },
     });
+
+    if (extractedEvidence.length > 0) {
+      evidence.push(...extractedEvidence);
+    } else {
+      const quote = preview(scraped.markdown, 500);
+      evidence.push({
+        claim: `Source "${scraped.title || resource.title}" contains potentially relevant information for the query.`,
+        quote,
+        title: scraped.title || resource.title,
+        url: scraped.url,
+        product: resource.product,
+        domain: resource.domain,
+        tier: resource.tier,
+        confidence:
+          resource.tier === "official_docs" || resource.tier === "trusted_docs"
+            ? 0.72
+            : 0.55,
+        entities: [resource.product, resource.domain].filter(Boolean) as string[],
+        reason: resource.reason,
+        text: quote,
+        metadata: {
+          fallbackEvidence: true,
+          sourceType: resource.source,
+          matchedScore: resource.score,
+          matchedBy: resource.matchedBy,
+          normalizedQuery: plan.normalizedQuery,
+        },
+      });
+    }
   }
 
   const evidencePack = buildEvidencePack({

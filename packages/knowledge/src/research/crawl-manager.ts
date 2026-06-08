@@ -1,6 +1,6 @@
 import { crawlSiteWithScrapling } from "../scrapers/scrapling.scraper.js";
 import type { RankedResource, EvidenceItem } from "./source-types.js";
-import { preview } from "../text/chunk-text.js";
+import { extractEvidenceFromPages } from "./evidence-extractor.js";
 
 export type CrawlManagerInput = {
   projectId: string;
@@ -50,7 +50,6 @@ export async function crawlResearchSources(
   const maxDepth = input.maxDepth ?? 1;
 
   const pages: CrawledResearchPage[] = [];
-  const evidence: EvidenceItem[] = [];
   const failed: CrawlManagerOutput["failed"] = [];
 
   for (const resource of input.resources) {
@@ -94,16 +93,6 @@ export async function crawlResearchSources(
 
         pages.push(crawledPage);
 
-        evidence.push({
-          title: crawledPage.title,
-          url: crawledPage.url,
-          product: resource.product,
-          domain: resource.domain,
-          tier: resource.tier,
-          text: preview(crawledPage.markdown, 1800),
-          reason: resource.reason,
-        });
-
         if (pages.length >= maxTotalPages) break;
       }
     } catch (error) {
@@ -114,6 +103,19 @@ export async function crawlResearchSources(
       });
     }
   }
+
+  const evidence = extractEvidenceFromPages(
+    pages.map((page) => ({
+      title: page.title,
+      url: page.url,
+      markdown: page.markdown,
+      product: page.source.product,
+      domain: page.source.domain,
+      tier: page.source.tier,
+      reason: page.source.reason,
+      metadata: page.metadata,
+    }))
+  );
 
   return {
     pages,

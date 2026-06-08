@@ -36,3 +36,11 @@
 
 10. **Source failures are useful memory.**
     Failed crawls, blocked pages, duplicate pages, and low-value pages should be remembered so Scout improves over time.
+
+## Research Engine v2 Slice 2
+
+- Page-level previews are not enough for Perplexity-style answers. Scout needs claim-level evidence with quotes.
+- Evidence extraction should stay deterministic first. LLM-based extraction can be added later after the pipeline is stable.
+- Citation verification should happen before final synthesis, not after the answer is written.
+- Keep route handlers thin. Research logic belongs in `packages/knowledge/src/research`.
+- Do not add swarm or graph complexity before evidence quality is reliable.
