@@ -183,15 +183,6 @@ To trigger the full pipeline — web crawl, ingestion, semantic search, Python e
 5. **Synthesis** — A clean comparison matrix surfaces with direct source links
 
 ---
-
-## Roadmap
-
-- [ ] **Distraction-free UI** — Typography-first redesign, collapsible source drawers, hidden trace layouts by default
-- [ ] **SSE Token Streaming** — Live token-by-token generation with real-time step metrics
-- [ ] **Domain Prioritization** — Source ranking that elevates official developer subdomains over secondary blogs
-- [ ] **Entity-Claim Knowledge Graphs** — Extract explicit code entities and store relational knowledge as graph networks
-
----
 ## Roadmap
 
 - [ ] **Distraction-free UI** — Typography-first redesign, collapsible source drawers, and hidden trace layouts by default.
