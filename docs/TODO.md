@@ -106,3 +106,21 @@ This file tracks the next implementation steps for Scout Research Engine v2.
 ### Next product feature
 
 - [ ] Add answer synthesis using `EvidencePack` directly instead of relying on raw RLM final output.
+
+## Done in v2 Slice 5
+
+- [x] Added deterministic evidence-based answer synthesis.
+- [x] Final answer now uses only supported or weak citation-verified evidence.
+- [x] Final answer includes source-numbered Markdown citations.
+- [x] Unsupported evidence is omitted from answer generation.
+- [x] ResearchOrchestrator now returns `answer`.
+
+## Now
+
+### Answer quality
+
+- [ ] Add tests for `answer-synthesizer.ts`.
+- [ ] Add comparison-specific formatting for "A vs B" questions.
+- [ ] Add implementation-specific formatting for "how to fix" questions.
+- [ ] Add UI rendering for `answer.markdown` and `answer.citations`.
+- [ ] Add an optional LLM polish step that is constrained to EvidencePack only.

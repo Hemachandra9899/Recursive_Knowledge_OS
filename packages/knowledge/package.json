@@ -46,7 +46,9 @@
     "./research/citation-verifier": "./src/research/citation-verifier.js",
     "./research/citation-verifier.js": "./src/research/citation-verifier.js",
     "./research/memory-ranking": "./src/research/memory-ranking.js",
-    "./research/memory-ranking.js": "./src/research/memory-ranking.js"
+    "./research/memory-ranking.js": "./src/research/memory-ranking.js",
+    "./research/answer-synthesizer": "./src/research/answer-synthesizer.js",
+    "./research/answer-synthesizer.js": "./src/research/answer-synthesizer.js"
   },
   "dependencies": {
     "@rlm-forge/clients": "*",

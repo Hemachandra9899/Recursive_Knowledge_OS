@@ -4,7 +4,12 @@ import { MemoryAgent } from "../agents/memory-agent.js";
 import { planResources } from "./resource-planner.js";
 import { crawlResearchSources } from "./crawl-manager.js";
 import { buildEvidencePack } from "./evidence-pack.js";
-import type { EvidencePack, RankedResource } from "./source-types.js";
+import { synthesizeAnswerFromEvidencePack } from "./answer-synthesizer.js";
+import type {
+  EvidencePack,
+  RankedResource,
+  SynthesizedAnswer,
+} from "./source-types.js";
 
 export type ResearchOrchestratorInput = {
   projectId: string;
@@ -55,6 +60,7 @@ export type ResearchOrchestratorOutput = {
     reason: string;
   }>;
   evidencePack: EvidencePack;
+  answer: SynthesizedAnswer;
 };
 
 function normalizeUrl(url: string): string {
@@ -199,6 +205,12 @@ export class ResearchOrchestrator {
       evidence: crawl.evidence,
     });
 
+    const answer = synthesizeAnswerFromEvidencePack({
+      query: input.query,
+      evidencePack,
+      maxClaims: 10,
+    });
+
     const sourceMemoryDrafts = this.memoryAgent.buildSourceMemoriesFromEvidencePack({
       projectId: input.projectId,
       userId: input.userId,
@@ -233,7 +245,7 @@ export class ResearchOrchestrator {
     return {
       status:
         documents.length > 0
-          ? crawl.failed.length > 0
+          ? crawl.failed.length > 0 || answer.status !== "answered"
             ? "partial"
             : "ok"
           : "error",
@@ -267,6 +279,7 @@ export class ResearchOrchestrator {
       documents,
       failedCrawls: crawl.failed,
       evidencePack,
+      answer,
     };
   }
 }

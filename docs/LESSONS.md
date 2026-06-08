@@ -59,3 +59,10 @@
 - Source memory should affect resource planning before crawling, not only answer synthesis after crawling.
 - Keep source penalties bounded. A failed URL should be penalized, but not permanently banned.
 - Durable fact memory should give only a small boost during ranking; evidence from current sources should still dominate.
+
+## Research Engine v2 Slice 5
+
+- The final answer should be built from EvidencePack, not raw scraped chunks.
+- Deterministic synthesis is a good first safety layer because it prevents unsupported claims from entering the answer.
+- LLM polish should be optional and evidence-constrained. Do not let it introduce uncited facts.
+- Returning both `answer` and `evidencePack` makes debugging and UI source drawers easier.

@@ -76,3 +76,22 @@ export type EvidencePack = {
     missing: string[];
   };
 };
+
+export type AnswerCitation = {
+  id: number;
+  title: string;
+  url: string;
+  tier: SourceTier;
+  usedClaims: number;
+};
+
+export type SynthesizedAnswer = {
+  status: "answered" | "partial" | "insufficient_evidence";
+  markdown: string;
+  citations: AnswerCitation[];
+  usedEvidenceCount: number;
+  supportedEvidenceCount: number;
+  weakEvidenceCount: number;
+  omittedUnsupportedCount: number;
+  confidence: number;
+};
