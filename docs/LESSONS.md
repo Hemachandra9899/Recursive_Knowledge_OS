@@ -44,3 +44,11 @@
 - Citation verification should happen before final synthesis, not after the answer is written.
 - Keep route handlers thin. Research logic belongs in `packages/knowledge/src/research`.
 - Do not add swarm or graph complexity before evidence quality is reliable.
+
+## Research Engine v2 Slice 3
+
+- Multi-query planning is the most important missing piece for source discovery.
+- The `SearchPlannerAgent` was already generating subqueries, but `ResearchOrchestrator` was ignoring them.
+- Merging resources across subqueries with URL normalization and score-based dedup is better than per-subquery limits.
+- Tracking `matchedBy` per resource helps future debugging and source diversity scoring.
+- The output should include `subqueries` so callers can see what was planned.

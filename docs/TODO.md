@@ -38,6 +38,12 @@ This file tracks the next implementation steps for Scout Research Engine v2.
   - weak
   - unsupported
 
+## Done in v2 Slice 3
+
+- [x] `ResearchOrchestrator` uses `SearchPlannerAgent.subqueries` for multi-query resource planning.
+- [x] Resources merged and deduplicated by normalized URL across subqueries.
+- [x] Highest score per URL kept; all subquery sources tracked in `matchedBy`.
+
 ## Now
 
 ### Evidence quality
@@ -50,8 +56,6 @@ This file tracks the next implementation steps for Scout Research Engine v2.
 
 ### Research planning
 
-- [ ] Make `ResearchOrchestrator` actually use `SearchPlannerAgent.subqueries` for multi-query resource planning.
-- [ ] Merge and dedupe ranked resources across subqueries.
 - [ ] Add source freshness scoring.
 - [ ] Add source diversity scoring.
 - [ ] Add per-domain crawl budgets.

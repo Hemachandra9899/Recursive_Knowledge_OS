@@ -4,7 +4,7 @@ import { MemoryAgent } from "../agents/memory-agent.js";
 import { planResources } from "./resource-planner.js";
 import { crawlResearchSources } from "./crawl-manager.js";
 import { buildEvidencePack } from "./evidence-pack.js";
-import type { EvidencePack } from "./source-types.js";
+import type { EvidencePack, RankedResource } from "./source-types.js";
 
 export type ResearchOrchestratorInput = {
   projectId: string;
@@ -20,6 +20,7 @@ export type ResearchOrchestratorOutput = {
   status: "ok" | "partial" | "error";
   query: string;
   normalizedQuery: string;
+  subqueries: Array<{ query: string; reason: string; priority: number }>;
   plan: unknown;
   resourcesPlanned: Array<{
     title: string;
@@ -28,6 +29,7 @@ export type ResearchOrchestratorOutput = {
     score: number;
     source: string;
     reason: string;
+    matchedBy: string[];
   }>;
   memories: {
     retrieved: number;
@@ -48,6 +50,46 @@ export type ResearchOrchestratorOutput = {
   }>;
   evidencePack: EvidencePack;
 };
+
+function normalizeUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    return u.origin + u.pathname.replace(/\/$/, "") + u.search;
+  } catch {
+    return url;
+  }
+}
+
+function mergeResources(allResources: RankedResource[][]): RankedResource[] {
+  const seen = new Map<string, RankedResource>();
+
+  for (const batch of allResources) {
+    for (const resource of batch) {
+      const key = normalizeUrl(resource.url);
+      const existing = seen.get(key);
+
+      if (!existing) {
+        seen.set(key, resource);
+      } else if (resource.score > existing.score) {
+        existing.score = resource.score;
+        existing.reason = resource.reason;
+        existing.tier = resource.tier;
+
+        const newMatched = (resource.matchedBy ?? []).filter(
+          (m) => !(existing.matchedBy ?? []).includes(m)
+        );
+        existing.matchedBy = [...(existing.matchedBy ?? []), ...newMatched];
+      } else {
+        const newMatched = (resource.matchedBy ?? []).filter(
+          (m) => !(existing.matchedBy ?? []).includes(m)
+        );
+        existing.matchedBy = [...(existing.matchedBy ?? []), ...newMatched];
+      }
+    }
+  }
+
+  return [...seen.values()].sort((a, b) => b.score - a.score);
+}
 
 export class ResearchOrchestrator {
   constructor(
@@ -73,18 +115,39 @@ export class ResearchOrchestrator {
     const maxSources =
       input.maxSources ?? planResult.output.recommendedMaxSources ?? 8;
 
-    const resourcePlan = await planResources({
-      query: planResult.output.normalizedQuery,
-      maxSources,
-    });
+    const plan = planResult.output;
+    const subqueries = plan.subqueries;
+
+    const allResourceBatches: RankedResource[][] = [];
+
+    for (const subquery of subqueries) {
+      const resourcePlan = await planResources({
+        query: subquery.query,
+        maxSources: Math.max(5, Math.ceil(maxSources / subqueries.length)),
+      });
+
+      for (const resource of resourcePlan.resources) {
+        if (!resource.matchedBy) {
+          resource.matchedBy = [];
+        }
+        resource.matchedBy.push(`subquery:${subquery.query}`);
+      }
+
+      allResourceBatches.push(resourcePlan.resources);
+    }
+
+    const mergedResources = mergeResources(allResourceBatches).slice(
+      0,
+      maxSources
+    );
 
     const crawl = await crawlResearchSources({
       projectId: input.projectId,
-      query: planResult.output.normalizedQuery,
-      resources: resourcePlan.resources,
+      query: plan.normalizedQuery,
+      resources: mergedResources,
       maxPagesPerSource:
         input.maxPagesPerSource ??
-        planResult.output.recommendedMaxPagesPerSource ??
+        plan.recommendedMaxPagesPerSource ??
         3,
       maxTotalPages: input.maxTotalPages ?? 20,
       maxDepth: input.maxDepth ?? 1,
@@ -102,7 +165,7 @@ export class ResearchOrchestrator {
           ...page.metadata,
           provider: "scrapling",
           researchQuery: input.query,
-          normalizedQuery: resourcePlan.normalizedQuery,
+          normalizedQuery: plan.normalizedQuery,
           sourceTitle: page.source.title,
           sourceTier: page.source.tier,
           sourceScore: page.source.score,
@@ -121,7 +184,7 @@ export class ResearchOrchestrator {
 
     const evidencePack = buildEvidencePack({
       query: input.query,
-      resourcesPlanned: resourcePlan.resources,
+      resourcesPlanned: mergedResources,
       evidence: crawl.evidence,
     });
 
@@ -144,15 +207,21 @@ export class ResearchOrchestrator {
             : "ok"
           : "error",
       query: input.query,
-      normalizedQuery: resourcePlan.normalizedQuery,
-      plan: planResult.output,
-      resourcesPlanned: resourcePlan.resources.map((resource) => ({
+      normalizedQuery: plan.normalizedQuery,
+      subqueries: subqueries.map((sq) => ({
+        query: sq.query,
+        reason: sq.reason,
+        priority: sq.priority,
+      })),
+      plan,
+      resourcesPlanned: mergedResources.map((resource) => ({
         title: resource.title,
         url: resource.url,
         tier: resource.tier,
         score: resource.score,
         source: resource.source,
         reason: resource.reason,
+        matchedBy: resource.matchedBy,
       })),
       memories: {
         retrieved: retrievedMemoryCount,
