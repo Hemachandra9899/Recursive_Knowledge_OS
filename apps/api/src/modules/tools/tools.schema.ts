@@ -4,12 +4,17 @@ export const crawlUrlSchema = z.object({
   projectId: z.string().uuid(),
   url: z.string().url(),
   maxPages: z.number().int().min(1).max(20).optional(),
+  maxDepth: z.number().int().min(0).max(3).optional(),
 });
 
 export const webResearchSchema = z.object({
   projectId: z.string().uuid(),
   query: z.string().min(1),
   maxResults: z.number().int().min(1).max(10).optional(),
+  maxPagesPerSource: z.number().int().min(1).max(10).optional(),
+  maxTotalPages: z.number().int().min(1).max(50).optional(),
+  maxDepth: z.number().int().min(0).max(3).optional(),
+  useOrchestrator: z.boolean().optional(),
 });
 
 export const planResourcesSchema = z.object({

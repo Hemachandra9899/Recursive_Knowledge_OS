@@ -5,6 +5,10 @@ import type {
   SourceUseCase,
 } from "./source-types.js";
 import { inferSourceUseCase } from "./query-builder.js";
+import {
+  scoreResourceWithMemory,
+  type ResourceMemoryHint,
+} from "./memory-ranking.js";
 
 const OFFICIAL_DOC_DOMAINS = [
   "developers.facebook.com",
@@ -135,18 +139,30 @@ function phraseMatch(query: string, phrase: string) {
   return query.toLowerCase().includes(phrase.toLowerCase());
 }
 
+function normalizeUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    parsed.hash = "";
+    return `${parsed.origin}${parsed.pathname.replace(/\/$/, "")}${parsed.search}`;
+  } catch {
+    return url;
+  }
+}
+
 export function rankResourceCandidates(
   query: string,
   candidates: ResourceCandidate[],
   options?: {
     maxSources?: number;
     minScore?: number;
+    memoryHints?: ResourceMemoryHint[];
   }
 ): RankedResource[] {
   const useCase = inferSourceUseCase(query);
   const queryTokens = new Set(tokenize(query));
   const maxSources = options?.maxSources ?? 10;
   const minScore = options?.minScore ?? 30;
+  const memoryHints = options?.memoryHints ?? [];
 
   const ranked = candidates.map((candidate) => {
     const tier = candidate.tier || inferTierFromUrl(candidate.url);
@@ -184,6 +200,15 @@ export function rankResourceCandidates(
       matchedBy.push("registry");
     }
 
+    const memoryScore = scoreResourceWithMemory({
+      query,
+      resource: candidate,
+      memoryHints,
+    });
+
+    score += memoryScore.scoreDelta;
+    matchedBy.push(...memoryScore.matchedBy);
+
     return {
       ...candidate,
       tier,
@@ -196,10 +221,11 @@ export function rankResourceCandidates(
   const seen = new Set<string>();
 
   for (const item of ranked.sort((a, b) => b.score - a.score)) {
-    if (seen.has(item.url)) continue;
+    const key = normalizeUrl(item.url);
+    if (seen.has(key)) continue;
     if (item.score < minScore) continue;
 
-    seen.add(item.url);
+    seen.add(key);
     deduped.push(item);
   }
 

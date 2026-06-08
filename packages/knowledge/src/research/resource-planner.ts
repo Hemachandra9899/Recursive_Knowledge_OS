@@ -3,10 +3,12 @@ import type { RankedResource, ResourceCandidate } from "./source-types.js";
 import { buildFallbackSearchQueries, normalizeResearchQuery } from "./query-builder.js";
 import { rankResourceCandidates } from "./source-ranker.js";
 import { searchResourceCandidates } from "./search-provider.js";
+import type { ResourceMemoryHint } from "./memory-ranking.js";
 
 export async function planResources(input: {
   query: string;
   maxSources?: number;
+  memoryHints?: ResourceMemoryHint[];
 }): Promise<{
   normalizedQuery: string;
   strategy: "registry_first" | "search_fallback" | "mixed";
@@ -14,6 +16,7 @@ export async function planResources(input: {
 }> {
   const normalizedQuery = normalizeResearchQuery(input.query);
   const maxSources = input.maxSources ?? 10;
+  const memoryHints = input.memoryHints ?? [];
 
   const registryResources = rankResourceCandidates(
     normalizedQuery,
@@ -21,6 +24,7 @@ export async function planResources(input: {
     {
       maxSources,
       minScore: 45,
+      memoryHints,
     }
   );
 
@@ -48,6 +52,7 @@ export async function planResources(input: {
     resources: rankResourceCandidates(normalizedQuery, combined, {
       maxSources,
       minScore: 25,
+      memoryHints,
     }),
   };
 }

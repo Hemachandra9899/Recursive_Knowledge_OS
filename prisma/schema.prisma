@@ -29,6 +29,7 @@ model Project {
   reports       Report[]
   conversations Conversation[]
   messages      ChatMessage[]
+  memories      Memory[]
 }
 
 model Conversation {
@@ -159,6 +160,29 @@ model Claim {
   createdAt       DateTime @default(now())
 
   @@index([projectId])
+}
+
+model Memory {
+  id         String   @id @default(uuid())
+  projectId  String
+  userId     String?
+  scope      String
+  kind       String
+  text       String
+  entities   Json     @default("[]")
+  sourceUrls Json     @default("[]")
+  confidence Float    @default(0.7)
+  eventTime  DateTime?
+  metadata   Json     @default("{}")
+  createdAt  DateTime @default(now())
+
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([userId])
+  @@index([scope])
+  @@index([kind])
+  @@index([createdAt])
 }
 
 model AgentRun {
