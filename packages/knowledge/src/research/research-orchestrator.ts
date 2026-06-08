@@ -34,6 +34,11 @@ export type ResearchOrchestratorOutput = {
   memories: {
     retrieved: number;
     written: number;
+    planned: {
+      sourceQuality: number;
+      sourceFailure: number;
+      durableFact: number;
+    };
   };
   documents: Array<{
     documentId: string;
@@ -69,21 +74,19 @@ function mergeResources(allResources: RankedResource[][]): RankedResource[] {
       const existing = seen.get(key);
 
       if (!existing) {
-        seen.set(key, resource);
-      } else if (resource.score > existing.score) {
+        seen.set(key, { ...resource, matchedBy: [...(resource.matchedBy ?? [])] });
+        continue;
+      }
+
+      const newMatched = (resource.matchedBy ?? []).filter(
+        (m) => !(existing.matchedBy ?? []).includes(m)
+      );
+      existing.matchedBy = [...(existing.matchedBy ?? []), ...newMatched];
+
+      if (resource.score > existing.score) {
         existing.score = resource.score;
         existing.reason = resource.reason;
         existing.tier = resource.tier;
-
-        const newMatched = (resource.matchedBy ?? []).filter(
-          (m) => !(existing.matchedBy ?? []).includes(m)
-        );
-        existing.matchedBy = [...(existing.matchedBy ?? []), ...newMatched];
-      } else {
-        const newMatched = (resource.matchedBy ?? []).filter(
-          (m) => !(existing.matchedBy ?? []).includes(m)
-        );
-        existing.matchedBy = [...(existing.matchedBy ?? []), ...newMatched];
       }
     }
   }
@@ -130,6 +133,7 @@ export class ResearchOrchestrator {
         if (!resource.matchedBy) {
           resource.matchedBy = [];
         }
+
         resource.matchedBy.push(`subquery:${subquery.query}`);
       }
 
@@ -194,9 +198,29 @@ export class ResearchOrchestrator {
       evidencePack,
     });
 
+    const failureMemoryDrafts = this.memoryAgent.buildFailureMemoriesFromCrawlFailures({
+      projectId: input.projectId,
+      userId: input.userId,
+      query: input.query,
+      failedCrawls: crawl.failed,
+    });
+
+    const durableFactMemoryDrafts =
+      this.memoryAgent.buildDurableFactMemoriesFromEvidencePack({
+        projectId: input.projectId,
+        userId: input.userId,
+        evidencePack,
+      });
+
+    const allMemoryDrafts = [
+      ...sourceMemoryDrafts,
+      ...failureMemoryDrafts,
+      ...durableFactMemoryDrafts,
+    ];
+
     const writeResult = await this.memoryAgent.writeRunMemories(
       context,
-      sourceMemoryDrafts
+      allMemoryDrafts
     );
 
     return {
@@ -226,6 +250,11 @@ export class ResearchOrchestrator {
       memories: {
         retrieved: retrievedMemoryCount,
         written: writeResult.output?.written ?? 0,
+        planned: {
+          sourceQuality: sourceMemoryDrafts.length,
+          sourceFailure: failureMemoryDrafts.length,
+          durableFact: durableFactMemoryDrafts.length,
+        },
       },
       documents,
       failedCrawls: crawl.failed,

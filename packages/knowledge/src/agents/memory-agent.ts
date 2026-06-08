@@ -4,6 +4,12 @@ import { MemoryManager } from "../memory/memory-manager.js";
 import type { ScoutMemory, ScoutMemoryDraft } from "../memory/memory-types.js";
 import type { EvidencePack } from "../research/source-types.js";
 
+type CrawlFailureForMemory = {
+  title?: string;
+  url?: string;
+  reason: string;
+};
+
 export type MemoryAgentOutput = {
   retrieved: ScoutMemory[];
   written: number;
@@ -32,6 +38,23 @@ export class MemoryAgent {
     evidencePack: EvidencePack;
   }): ScoutMemoryDraft[] {
     return this.memoryManager.buildSourceMemoriesFromEvidencePack(input);
+  }
+
+  buildFailureMemoriesFromCrawlFailures(input: {
+    projectId: string;
+    userId?: string;
+    query: string;
+    failedCrawls: CrawlFailureForMemory[];
+  }): ScoutMemoryDraft[] {
+    return this.memoryManager.buildFailureMemoriesFromCrawlFailures(input);
+  }
+
+  buildDurableFactMemoriesFromEvidencePack(input: {
+    projectId: string;
+    userId?: string;
+    evidencePack: EvidencePack;
+  }): ScoutMemoryDraft[] {
+    return this.memoryManager.buildDurableFactMemoriesFromEvidencePack(input);
   }
 
   async writeRunMemories(

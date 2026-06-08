@@ -8,7 +8,9 @@ export type ScoutMemoryScope =
 export type ScoutMemoryKind =
   | "preference"
   | "fact"
+  | "durable_fact"
   | "source_quality"
+  | "source_failure"
   | "decision"
   | "task_trace";
 
