@@ -23,6 +23,14 @@ export type ResourceCandidate = {
   keywords?: string[];
   reason: string;
   source: "registry" | "web_search" | "user_url";
+
+  /**
+   * Optional publication/update time surfaced by a search provider.
+   * Used only as a ranking hint; official docs without dates are not penalized heavily.
+   */
+  publishedAt?: string;
+
+  metadata?: Record<string, unknown>;
 };
 
 export type RankedResource = ResourceCandidate & {

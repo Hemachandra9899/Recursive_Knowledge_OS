@@ -1,29 +1,68 @@
 import type {
   AnswerCitation,
   AnswerMode,
+  CitationVerificationStatus,
   EvidenceItem,
   EvidencePack,
-  SynthesizedAnswer,
   SourceTier,
-  CitationVerificationStatus,
+  SynthesizedAnswer,
 } from "./source-types.js";
 
-type EvidenceWithStatus = {
+export type EvidenceWithStatus = {
   item: EvidenceItem;
   status: CitationVerificationStatus;
   score: number;
 };
 
-function tierWeight(tier: SourceTier): number {
-  if (tier === "official_docs") return 30;
-  if (tier === "trusted_docs") return 22;
-  if (tier === "reference_examples") return 12;
-  if (tier === "community") return 4;
-  if (tier === "media") return 2;
-  return 6;
-}
+export type RenderAnswerInput = {
+  mode: AnswerMode;
+  query: string;
+  rows: EvidenceWithStatus[];
+  citations: AnswerCitation[];
+  citationIdBySource: Map<string, number>;
+  status: SynthesizedAnswer["status"];
+};
 
-function tokenize(text: string): string[] {
+type Section = {
+  heading: string;
+  body: string;
+};
+
+const SOURCE_TIER_WEIGHTS: Record<SourceTier, number> = {
+  official_docs: 30,
+  trusted_docs: 22,
+  reference_examples: 12,
+  community: 4,
+  media: 2,
+  unknown: 6,
+};
+
+const STATUS_WEIGHTS: Record<CitationVerificationStatus, number> = {
+  supported: 40,
+  weak: 12,
+  unsupported: -100,
+};
+
+const MODE_INTROS: Record<AnswerMode, { answered: string; partial: string }> = {
+  comparison: {
+    answered: "Here is the grounded comparison based on supported evidence.",
+    partial: "I found limited evidence, so treat this as a partial comparison.",
+  },
+  how_to: {
+    answered: "Here are the evidence-backed steps/details.",
+    partial: "I found limited evidence, so treat these as partial steps.",
+  },
+  research_summary: {
+    answered: "Here is the grounded research summary.",
+    partial: "I found limited evidence, so this is a partial research summary.",
+  },
+  general: {
+    answered: "Here is the grounded answer.",
+    partial: "I found only weak evidence, so treat this as a partial answer.",
+  },
+};
+
+export function tokenize(text: string): string[] {
   return text
     .toLowerCase()
     .replace(/[^a-z0-9.+#\s-]/g, " ")
@@ -31,34 +70,57 @@ function tokenize(text: string): string[] {
     .filter((token) => token.length > 2);
 }
 
-function unique<T>(items: T[]): T[] {
-  return [...new Set(items)];
-}
-
-function shorten(text: string, maxChars: number): string {
+export function shorten(text: string, maxChars: number): string {
   const clean = text.replace(/\s+/g, " ").trim();
   if (clean.length <= maxChars) return clean;
-  return clean.slice(0, maxChars - 3) + "...";
+  return `${clean.slice(0, maxChars - 3)}...`;
 }
 
-function sourceKey(item: EvidenceItem): string {
-  return item.url || item.title + ":" + item.tier;
+export function sourceKey(item: EvidenceItem): string {
+  return item.url || `${item.title}:${item.tier}`;
 }
 
-function evidenceKey(item: EvidenceItem): string {
-  return item.url + "::" + item.claim.toLowerCase().replace(/\s+/g, " ").trim();
+export function evidenceKey(item: EvidenceItem): string {
+  return `${item.url}::${item.claim.toLowerCase().replace(/\s+/g, " ").trim()}`;
 }
 
-function scoreEvidence(query: string, item: EvidenceItem, status: CitationVerificationStatus): number {
+export function scoreEvidence(
+  query: string,
+  item: EvidenceItem,
+  status: CitationVerificationStatus
+): number {
   const queryTokens = new Set(tokenize(query));
-  const itemTokens = new Set(
-    tokenize([item.claim, item.section, item.product, item.domain, ...item.entities].filter(Boolean).join(" "))
-  );
+  const evidenceText = [
+    item.claim,
+    item.section,
+    item.product,
+    item.domain,
+    ...item.entities,
+  ]
+    .filter(Boolean)
+    .join(" ");
 
+  const itemTokens = new Set(tokenize(evidenceText));
   const overlap = [...itemTokens].filter((token) => queryTokens.has(token)).length;
-  const statusWeight = status === "supported" ? 40 : status === "weak" ? 12 : -100;
 
-  return statusWeight + item.confidence * 35 + tierWeight(item.tier) + overlap * 3;
+  return (
+    STATUS_WEIGHTS[status] +
+    item.confidence * 35 +
+    SOURCE_TIER_WEIGHTS[item.tier] +
+    overlap * 3
+  );
+}
+
+export function confidenceForAnswer(rows: EvidenceWithStatus[]): number {
+  if (rows.length === 0) return 0;
+
+  const supported = rows.filter((row) => row.status === "supported");
+  const usable = supported.length > 0 ? supported : rows;
+  const avg =
+    usable.reduce((sum, row) => sum + row.item.confidence, 0) / usable.length;
+  const supportBoost = supported.length / rows.length;
+
+  return Math.min(0.98, Number((avg * 0.8 + supportBoost * 0.2).toFixed(2)));
 }
 
 export function buildCitationMap(evidence: EvidenceItem[]): {
@@ -88,13 +150,260 @@ export function buildCitationMap(evidence: EvidenceItem[]): {
     citationIdBySource.set(key, id);
   }
 
-  return { citationBySource, citationIdBySource };
+  return {
+    citationBySource,
+    citationIdBySource,
+  };
+}
+
+function compact(parts: string[]): string {
+  return parts.filter((part) => part.trim().length > 0).join("\n");
+}
+
+function markdownDocument(sections: Section[]): string {
+  return compact(
+    sections.flatMap((section) => [
+      `## ${section.heading}`,
+      "",
+      section.body,
+      "",
+    ])
+  );
 }
 
 function statusLabel(status: CitationVerificationStatus): string {
   if (status === "supported") return "supported";
   if (status === "weak") return "weak";
   return "unsupported";
+}
+
+function citationSuffix(input: {
+  item: EvidenceItem;
+  citationIdBySource: Map<string, number>;
+}): string {
+  const citationId = input.citationIdBySource.get(sourceKey(input.item));
+  return citationId ? ` [${citationId}]` : "";
+}
+
+function claimLine(input: {
+  row: EvidenceWithStatus;
+  citationIdBySource: Map<string, number>;
+  maxChars: number;
+}): string {
+  const prefix = input.row.status === "weak" ? "Likely: " : "";
+  return `${prefix}${shorten(input.row.item.claim, input.maxChars)}${citationSuffix({
+    item: input.row.item,
+    citationIdBySource: input.citationIdBySource,
+  })}`;
+}
+
+function numberedClaims(input: {
+  rows: EvidenceWithStatus[];
+  citationIdBySource: Map<string, number>;
+  maxClaims: number;
+  maxChars: number;
+}): string {
+  return input.rows
+    .slice(0, input.maxClaims)
+    .map(
+      (row, index) =>
+        `${index + 1}. ${claimLine({
+          row,
+          citationIdBySource: input.citationIdBySource,
+          maxChars: input.maxChars,
+        })}`
+    )
+    .join("\n");
+}
+
+function bulletClaims(input: {
+  rows: EvidenceWithStatus[];
+  citationIdBySource: Map<string, number>;
+  maxClaims: number;
+  maxChars: number;
+}): string {
+  return input.rows
+    .slice(0, input.maxClaims)
+    .map(
+      (row) =>
+        `- ${claimLine({
+          row,
+          citationIdBySource: input.citationIdBySource,
+          maxChars: input.maxChars,
+        })}`
+    )
+    .join("\n");
+}
+
+function buildSourcesMarkdown(citations: AnswerCitation[]): string {
+  return citations
+    .map((citation) => `[${citation.id}] ${citation.title} — ${citation.url}`)
+    .join("\n");
+}
+
+function buildEvidenceNotesMarkdown(rows: EvidenceWithStatus[]): string {
+  return rows
+    .slice(0, 6)
+    .map((row, index) => {
+      const section = row.item.section ? `, section "${row.item.section}"` : "";
+      return `${index + 1}. ${statusLabel(row.status)} evidence from ${
+        row.item.title
+      }${section}: "${shorten(row.item.quote, 220)}"`;
+    })
+    .join("\n");
+}
+
+function introFor(input: RenderAnswerInput): string {
+  if (input.mode === "general" && input.status === "answered") {
+    const supported = input.rows.filter((row) => row.status === "supported").length;
+    return `Based on ${supported} supported claim(s) from ${input.citations.length} source(s), here is the grounded answer.`;
+  }
+
+  return MODE_INTROS[input.mode][input.status === "answered" ? "answered" : "partial"];
+}
+
+function commonSections(input: RenderAnswerInput): Section[] {
+  return [
+    {
+      heading: "Evidence notes",
+      body: buildEvidenceNotesMarkdown(input.rows),
+    },
+    {
+      heading: "Sources",
+      body: buildSourcesMarkdown(input.citations),
+    },
+  ];
+}
+
+function groupByProductOrDomain(rows: EvidenceWithStatus[]): Map<string, EvidenceWithStatus[]> {
+  const groups = new Map<string, EvidenceWithStatus[]>();
+
+  for (const row of rows) {
+    const key =
+      row.item.product ||
+      row.item.domain ||
+      row.item.entities[0] ||
+      row.item.title ||
+      "Other";
+
+    groups.set(key, [...(groups.get(key) ?? []), row]);
+  }
+
+  return groups;
+}
+
+function comparisonTable(input: RenderAnswerInput): string {
+  const rows = [...groupByProductOrDomain(input.rows).entries()]
+    .slice(0, 4)
+    .map(([name, groupRows]) => {
+      const summary = groupRows
+        .slice(0, 3)
+        .map((row) =>
+          claimLine({
+            row,
+            citationIdBySource: input.citationIdBySource,
+            maxChars: 140,
+          })
+        )
+        .join("<br>");
+
+      return `| ${name} | ${summary || "No supported evidence found."} |`;
+    })
+    .join("\n");
+
+  return compact([
+    "| Topic | Evidence-backed points |",
+    "|---|---|",
+    rows || "| Evidence | No comparable supported evidence found. |",
+  ]);
+}
+
+function renderComparison(input: RenderAnswerInput): string {
+  return markdownDocument([
+    {
+      heading: "Answer",
+      body: introFor(input),
+    },
+    {
+      heading: "Comparison table",
+      body: comparisonTable(input),
+    },
+    {
+      heading: "Key takeaways",
+      body: numberedClaims({
+        rows: input.rows,
+        citationIdBySource: input.citationIdBySource,
+        maxClaims: 5,
+        maxChars: 260,
+      }),
+    },
+    ...commonSections(input),
+  ]);
+}
+
+function renderHowTo(input: RenderAnswerInput): string {
+  return markdownDocument([
+    {
+      heading: "Answer",
+      body: introFor(input),
+    },
+    {
+      heading: "Steps / implementation notes",
+      body: numberedClaims({
+        rows: input.rows,
+        citationIdBySource: input.citationIdBySource,
+        maxClaims: 8,
+        maxChars: 280,
+      }),
+    },
+    {
+      heading: "Things to verify",
+      body: [
+        "- Check the linked official/trusted source before production use.",
+        "- Treat weak evidence as a hint, not a final fact.",
+        "- Re-run research with a narrower query if any required setup detail is missing.",
+      ].join("\n"),
+    },
+    ...commonSections(input),
+  ]);
+}
+
+function renderResearchSummary(input: RenderAnswerInput): string {
+  return markdownDocument([
+    {
+      heading: "Answer",
+      body: introFor(input),
+    },
+    {
+      heading: "Main points",
+      body: bulletClaims({
+        rows: input.rows,
+        citationIdBySource: input.citationIdBySource,
+        maxClaims: 6,
+        maxChars: 260,
+      }),
+    },
+    ...commonSections(input),
+  ]);
+}
+
+function renderGeneral(input: RenderAnswerInput): string {
+  return markdownDocument([
+    {
+      heading: "Answer",
+      body: compact([
+        introFor(input),
+        "",
+        numberedClaims({
+          rows: input.rows,
+          citationIdBySource: input.citationIdBySource,
+          maxClaims: 10,
+          maxChars: 320,
+        }),
+      ]),
+    },
+    ...commonSections(input),
+  ]);
 }
 
 export function groupEvidenceForAnswer(input: {
@@ -153,236 +462,13 @@ export function buildNoEvidenceAnswer(evidencePack: EvidencePack, mode: string):
   };
 }
 
-export function confidenceForAnswer(rows: EvidenceWithStatus[]): number {
-  if (rows.length === 0) return 0;
-
-  const supported = rows.filter((row) => row.status === "supported");
-  const usable = supported.length > 0 ? supported : rows;
-
-  const avg = usable.reduce((sum, row) => sum + row.item.confidence, 0) / usable.length;
-  const supportBoost = supported.length / rows.length;
-
-  return Math.min(0.98, Number((avg * 0.8 + supportBoost * 0.2).toFixed(2)));
+export function renderMarkdownForMode(input: RenderAnswerInput): string {
+  return renderAnswerMarkdown(input);
 }
 
-function citationSuffix(input: {
-  item: EvidenceItem;
-  citationIdBySource: Map<string, number>;
-}): string {
-  const citationId = input.citationIdBySource.get(sourceKey(input.item));
-  return citationId ? " [" + citationId + "]" : "";
-}
-
-function buildSourcesMarkdown(citations: AnswerCitation[]): string {
-  if (citations.length === 0) return "";
-  return citations
-    .map((citation) => "[" + citation.id + "] " + citation.title + " -- " + citation.url)
-    .join("\n");
-}
-
-function buildEvidenceNotesMarkdown(rows: EvidenceWithStatus[]): string {
-  return rows
-    .slice(0, 6)
-    .map((row, index) => {
-      const section = row.item.section ? ', section "' + row.item.section + '"' : "";
-      return (index + 1) + ". " + statusLabel(row.status) + " evidence from " + row.item.title + section + ': "' + shorten(row.item.quote, 220) + '"';
-    })
-    .join("\n");
-}
-
-function groupByProductOrDomain(rows: EvidenceWithStatus[]): Map<string, EvidenceWithStatus[]> {
-  const groups = new Map<string, EvidenceWithStatus[]>();
-  for (const row of rows) {
-    const key = row.item.product || row.item.domain || row.item.entities[0] || row.item.title || "Other";
-    const existing = groups.get(key) ?? [];
-    existing.push(row);
-    groups.set(key, existing);
-  }
-  return groups;
-}
-
-export function buildComparisonMarkdown(input: {
-  query: string;
-  rows: EvidenceWithStatus[];
-  citations: AnswerCitation[];
-  citationIdBySource: Map<string, number>;
-  status: SynthesizedAnswer["status"];
-}): string {
-  const groups = groupByProductOrDomain(input.rows);
-  const groupNames = [...groups.keys()].slice(0, 4);
-
-  const tableRows = groupNames
-    .map((name) => {
-      const claims = (groups.get(name) ?? []).slice(0, 3);
-      const summary = claims
-        .map((row) => shorten(row.item.claim, 140) + citationSuffix({ item: row.item, citationIdBySource: input.citationIdBySource }))
-        .join("<br>");
-      return "| " + name + " | " + (summary || "No supported evidence found.") + " |";
-    })
-    .join("\n");
-
-  const topClaims = input.rows
-    .slice(0, 5)
-    .map((row, index) => {
-      const prefix = row.status === "weak" ? "Likely: " : "";
-      return (index + 1) + ". " + prefix + shorten(row.item.claim, 260) + citationSuffix({ item: row.item, citationIdBySource: input.citationIdBySource });
-    })
-    .join("\n");
-
-  return [
-    "## Answer",
-    "",
-    input.status === "answered"
-      ? "Here is the grounded comparison based on supported evidence."
-      : "I found limited evidence, so treat this as a partial comparison.",
-    "",
-    "## Comparison table",
-    "",
-    "| Topic | Evidence-backed points |",
-    "|---|---|",
-    tableRows || "| Evidence | No comparable supported evidence found. |",
-    "",
-    "## Key takeaways",
-    "",
-    topClaims,
-    "",
-    "## Evidence notes",
-    "",
-    buildEvidenceNotesMarkdown(input.rows),
-    "",
-    "## Sources",
-    "",
-    buildSourcesMarkdown(input.citations),
-  ]
-    .filter((part) => part.trim().length > 0)
-    .join("\n");
-}
-
-export function buildHowToMarkdown(input: {
-  rows: EvidenceWithStatus[];
-  citations: AnswerCitation[];
-  citationIdBySource: Map<string, number>;
-  status: SynthesizedAnswer["status"];
-}): string {
-  const steps = input.rows
-    .slice(0, 8)
-    .map((row, index) => {
-      const prefix = row.status === "weak" ? "Likely: " : "";
-      return (index + 1) + ". " + prefix + shorten(row.item.claim, 280) + citationSuffix({ item: row.item, citationIdBySource: input.citationIdBySource });
-    })
-    .join("\n");
-
-  return [
-    "## Answer",
-    "",
-    input.status === "answered"
-      ? "Here are the evidence-backed steps/details."
-      : "I found limited evidence, so treat these as partial steps.",
-    "",
-    "## Steps / implementation notes",
-    "",
-    steps,
-    "",
-    "## Things to verify",
-    "",
-    "- Check the linked official/trusted source before production use.",
-    "- Treat weak evidence as a hint, not a final fact.",
-    "- Re-run research with a narrower query if any required setup detail is missing.",
-    "",
-    "## Evidence notes",
-    "",
-    buildEvidenceNotesMarkdown(input.rows),
-    "",
-    "## Sources",
-    "",
-    buildSourcesMarkdown(input.citations),
-  ]
-    .filter((part) => part.trim().length > 0)
-    .join("\n");
-}
-
-export function buildResearchSummaryMarkdown(input: {
-  rows: EvidenceWithStatus[];
-  citations: AnswerCitation[];
-  citationIdBySource: Map<string, number>;
-  status: SynthesizedAnswer["status"];
-}): string {
-  const summaryClaims = input.rows
-    .slice(0, 6)
-    .map((row) => {
-      const prefix = row.status === "weak" ? "Likely: " : "";
-      return "- " + prefix + shorten(row.item.claim, 260) + citationSuffix({ item: row.item, citationIdBySource: input.citationIdBySource });
-    })
-    .join("\n");
-
-  return [
-    "## Answer",
-    "",
-    input.status === "answered"
-      ? "Here is the grounded research summary."
-      : "I found limited evidence, so this is a partial research summary.",
-    "",
-    "## Main points",
-    "",
-    summaryClaims,
-    "",
-    "## Evidence notes",
-    "",
-    buildEvidenceNotesMarkdown(input.rows),
-    "",
-    "## Sources",
-    "",
-    buildSourcesMarkdown(input.citations),
-  ]
-    .filter((part) => part.trim().length > 0)
-    .join("\n");
-}
-
-export function buildGeneralMarkdown(input: {
-  rows: EvidenceWithStatus[];
-  citations: AnswerCitation[];
-  citationIdBySource: Map<string, number>;
-  status: SynthesizedAnswer["status"];
-}): string {
-  const claims = input.rows
-    .slice(0, 10)
-    .map((row, index) => {
-      const prefix = row.status === "weak" ? "Likely: " : "";
-      return (index + 1) + ". " + prefix + shorten(row.item.claim, 320) + citationSuffix({ item: row.item, citationIdBySource: input.citationIdBySource });
-    })
-    .join("\n");
-
-  return [
-    "## Answer",
-    "",
-    input.status === "answered"
-      ? "Based on " + input.rows.filter((row) => row.status === "supported").length + " supported claim(s) from " + input.citations.length + " source(s), here is the grounded answer."
-      : "I found only weak evidence, so treat this as a partial answer.",
-    "",
-    claims,
-    "",
-    "## Evidence notes",
-    "",
-    buildEvidenceNotesMarkdown(input.rows),
-    "",
-    "## Sources",
-    "",
-    buildSourcesMarkdown(input.citations),
-  ]
-    .filter((part) => part.trim().length > 0)
-    .join("\n");
-}
-
-export function renderMarkdownForMode(input: {
-  mode: string;
-  query: string;
-  rows: EvidenceWithStatus[];
-  citations: AnswerCitation[];
-  citationIdBySource: Map<string, number>;
-  status: SynthesizedAnswer["status"];
-}): string {
-  if (input.mode === "comparison") return buildComparisonMarkdown(input);
-  if (input.mode === "how_to") return buildHowToMarkdown(input);
-  if (input.mode === "research_summary") return buildResearchSummaryMarkdown(input);
-  return buildGeneralMarkdown(input);
+export function renderAnswerMarkdown(input: RenderAnswerInput): string {
+  if (input.mode === "comparison") return renderComparison(input);
+  if (input.mode === "how_to") return renderHowTo(input);
+  if (input.mode === "research_summary") return renderResearchSummary(input);
+  return renderGeneral(input);
 }

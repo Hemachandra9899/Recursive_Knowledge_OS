@@ -9,6 +9,21 @@ function pickUrl(row: any): string {
   return row?.url || row?.metadata?.sourceURL || "";
 }
 
+function pickPublishedAt(row: any): string | undefined {
+  return (
+    row?.publishedAt ||
+    row?.published_at ||
+    row?.date ||
+    row?.updatedAt ||
+    row?.updated_at ||
+    row?.metadata?.publishedAt ||
+    row?.metadata?.published_at ||
+    row?.metadata?.date ||
+    row?.metadata?.updatedAt ||
+    row?.metadata?.updated_at
+  );
+}
+
 export async function searchResourceCandidates(
   query: string,
   limit = 5
@@ -53,6 +68,12 @@ export async function searchResourceCandidates(
         keywords: [],
         reason: "Discovered by web search fallback.",
         source: "web_search" as const,
+        publishedAt: pickPublishedAt(row),
+        metadata: {
+          provider: "firecrawl",
+          description: row?.description,
+          rawScore: row?.score,
+        },
       };
     })
     .filter(Boolean) as ResourceCandidate[];

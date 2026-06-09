@@ -49,6 +49,12 @@ const COMMUNITY_DOMAINS = [
 
 const MEDIA_DOMAINS = ["youtube.com", "youtu.be"];
 
+const FRESHNESS_QUERY_PATTERN =
+  /\b(latest|current|recent|today|now|new|updated|202[4-9]|version|changelog|release|pricing|rate limit|deprecated|deprecation)\b/i;
+
+const DEPRECATED_SOURCE_PATTERN =
+  /\b(deprecated|deprecation|legacy|obsolete|archived|sunset|retired)\b/i;
+
 export function getHostname(url?: string | null): string {
   if (!url) return "";
 
@@ -149,6 +155,133 @@ function normalizeUrl(url: string): string {
   }
 }
 
+function parseDate(value?: string): Date | null {
+  if (!value) return null;
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+
+  return date;
+}
+
+function yearsAgo(date: Date, now = new Date()): number {
+  return (now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24 * 365);
+}
+
+function inferYearFromText(text: string): number | null {
+  const matches = text.match(/\b20\d{2}\b/g) ?? [];
+  const years = matches
+    .map(Number)
+    .filter((year) => year >= 2018 && year <= new Date().getFullYear() + 1);
+
+  if (years.length === 0) return null;
+  return Math.max(...years);
+}
+
+export function isFreshnessRequired(query: string): boolean {
+  return FRESHNESS_QUERY_PATTERN.test(query);
+}
+
+function scoreFreshness(input: {
+  query: string;
+  candidate: ResourceCandidate;
+  tier: SourceTier;
+}): {
+  scoreDelta: number;
+  matchedBy: string[];
+} {
+  const matchedBy: string[] = [];
+  let scoreDelta = 0;
+
+  const text = `${input.candidate.title} ${input.candidate.url} ${
+    input.candidate.reason
+  } ${(input.candidate.keywords ?? []).join(" ")}`;
+
+  if (DEPRECATED_SOURCE_PATTERN.test(text)) {
+    scoreDelta -= 24;
+    matchedBy.push("freshness:deprecated:-24");
+  }
+
+  const freshnessRequired = isFreshnessRequired(input.query);
+  const publishedAt = parseDate(input.candidate.publishedAt);
+  const inferredYear = inferYearFromText(text);
+
+  if (publishedAt) {
+    const ageYears = yearsAgo(publishedAt);
+
+    if (ageYears <= 0.75) {
+      scoreDelta += freshnessRequired ? 18 : 6;
+      matchedBy.push(`freshness:published_recent:+${freshnessRequired ? 18 : 6}`);
+    } else if (ageYears <= 2) {
+      scoreDelta += freshnessRequired ? 10 : 3;
+      matchedBy.push(`freshness:published_moderate:+${freshnessRequired ? 10 : 3}`);
+    } else if (freshnessRequired) {
+      const penalty = input.tier === "official_docs" ? 8 : 18;
+      scoreDelta -= penalty;
+      matchedBy.push(`freshness:published_old:-${penalty}`);
+    }
+
+    return { scoreDelta, matchedBy };
+  }
+
+  if (inferredYear) {
+    const currentYear = new Date().getFullYear();
+    const yearAge = currentYear - inferredYear;
+
+    if (yearAge <= 1) {
+      scoreDelta += freshnessRequired ? 12 : 4;
+      matchedBy.push(`freshness:year_recent:${inferredYear}:+${freshnessRequired ? 12 : 4}`);
+    } else if (freshnessRequired && yearAge >= 3) {
+      const penalty = input.tier === "official_docs" ? 4 : 10;
+      scoreDelta -= penalty;
+      matchedBy.push(`freshness:year_old:${inferredYear}:-${penalty}`);
+    }
+
+    return { scoreDelta, matchedBy };
+  }
+
+  if (freshnessRequired && input.tier !== "official_docs" && input.tier !== "trusted_docs") {
+    scoreDelta -= 4;
+    matchedBy.push("freshness:unknown_date:-4");
+  }
+
+  return { scoreDelta, matchedBy };
+}
+
+function selectWithDomainDiversity(input: {
+  ranked: RankedResource[];
+  maxSources: number;
+  maxPerDomain: number;
+}): RankedResource[] {
+  const selected: RankedResource[] = [];
+  const deferred: RankedResource[] = [];
+  const domainCounts = new Map<string, number>();
+
+  for (const item of input.ranked) {
+    const host = getHostname(item.url) || "unknown";
+    const currentCount = domainCounts.get(host) ?? 0;
+
+    if (currentCount < input.maxPerDomain) {
+      selected.push(item);
+      domainCounts.set(host, currentCount + 1);
+    } else {
+      deferred.push({
+        ...item,
+        matchedBy: [...item.matchedBy, `diversity:deferred_domain:${host}`],
+      });
+    }
+
+    if (selected.length >= input.maxSources) return selected;
+  }
+
+  for (const item of deferred) {
+    if (selected.length >= input.maxSources) break;
+    selected.push(item);
+  }
+
+  return selected;
+}
+
 export function rankResourceCandidates(
   query: string,
   candidates: ResourceCandidate[],
@@ -156,6 +289,8 @@ export function rankResourceCandidates(
     maxSources?: number;
     minScore?: number;
     memoryHints?: ResourceMemoryHint[];
+    maxPerDomain?: number;
+    freshnessRequired?: boolean;
   }
 ): RankedResource[] {
   const useCase = inferSourceUseCase(query);
@@ -163,6 +298,11 @@ export function rankResourceCandidates(
   const maxSources = options?.maxSources ?? 10;
   const minScore = options?.minScore ?? 30;
   const memoryHints = options?.memoryHints ?? [];
+  const maxPerDomain = options?.maxPerDomain ?? 2;
+  const rankingQuery =
+    options?.freshnessRequired === true && !isFreshnessRequired(query)
+      ? `${query} latest current`
+      : query;
 
   const ranked = candidates.map((candidate) => {
     const tier = candidate.tier || inferTierFromUrl(candidate.url);
@@ -209,6 +349,15 @@ export function rankResourceCandidates(
     score += memoryScore.scoreDelta;
     matchedBy.push(...memoryScore.matchedBy);
 
+    const freshnessScore = scoreFreshness({
+      query: rankingQuery,
+      candidate,
+      tier,
+    });
+
+    score += freshnessScore.scoreDelta;
+    matchedBy.push(...freshnessScore.matchedBy);
+
     return {
       ...candidate,
       tier,
@@ -229,5 +378,9 @@ export function rankResourceCandidates(
     deduped.push(item);
   }
 
-  return deduped.slice(0, maxSources);
+  return selectWithDomainDiversity({
+    ranked: deduped,
+    maxSources,
+    maxPerDomain,
+  });
 }

@@ -1,0 +1,42 @@
+name: Knowledge package checks
+
+on:
+  pull_request:
+    paths:
+      - "packages/knowledge/**"
+      - "packages/database/**"
+      - "packages/clients/**"
+      - "packages/retrieval/**"
+      - "package.json"
+      - "package-lock.json"
+      - "prisma/**"
+      - ".github/workflows/knowledge-tests.yml"
+  push:
+    branches:
+      - main
+
+jobs:
+  knowledge:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npm run prisma:generate
+
+      - name: Typecheck knowledge package
+        run: npm run typecheck:knowledge
+
+      - name: Test knowledge package
+        run: npm run test:knowledge

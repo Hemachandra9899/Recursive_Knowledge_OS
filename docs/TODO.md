@@ -142,3 +142,58 @@ This file tracks the next implementation steps for Scout Research Engine v2.
 - [ ] Expose answer mode in the UI.
 - [ ] Add a source drawer UI for `answer.citations`.
 - [ ] Remove root-level patch scripts or move them under `scripts/dev-patches/` before merging.
+
+## Done in v2 Slice 8
+
+- [x] Added initial unit tests for evidence extraction.
+- [x] Added citation verifier tests.
+- [x] Added memory ranking tests.
+- [x] Added answer mode tests.
+- [x] Added answer synthesizer tests.
+- [x] Added package-level typecheck and test scripts.
+- [x] Exported answer mode and answer renderers from the knowledge package.
+
+## Now
+
+### Stabilization
+
+- [ ] Run `npm install`.
+- [ ] Run `npm --workspace packages/knowledge run typecheck`.
+- [ ] Run `npm --workspace packages/knowledge test`.
+- [ ] Fix any TypeScript/test failures.
+- [ ] Add orchestrator integration test with mocked search/crawl.
+- [ ] Add CI command for package tests.
+
+## Done in v2 Slice 9
+
+- [x] Added ResearchOrchestrator integration test with mocked search, crawl, ingestion, and memory.
+- [x] Added root scripts for knowledge package typecheck and tests.
+- [x] Added GitHub Actions workflow for knowledge package checks.
+
+## Now
+
+### Before adding new product features
+
+- [ ] Run `npm run typecheck:knowledge`.
+- [ ] Run `npm run test:knowledge`.
+- [ ] Run full web-research smoke test locally.
+- [ ] Check GitHub Actions passes on PR.
+- [ ] Remove or archive old patch scripts if still present outside `scripts/dev-patches/`.
+
+## Done in v2 Slice 10
+
+- [x] Added source freshness scoring.
+- [x] Captured provider-published timestamps when search results expose them.
+- [x] Penalized deprecated/legacy/archive-like sources.
+- [x] Added same-domain diversity selection.
+- [x] Added source-ranker tests for freshness and diversity.
+
+## Now
+
+### Search quality
+
+- [ ] Run `npm run typecheck:knowledge`.
+- [ ] Run `npm run test:knowledge`.
+- [ ] Run a real freshness query smoke test.
+- [ ] Tune freshness penalties after observing real search results.
+- [ ] Consider source freshness/diversity telemetry in trace output.

@@ -48,12 +48,25 @@
     "./research/memory-ranking": "./src/research/memory-ranking.js",
     "./research/memory-ranking.js": "./src/research/memory-ranking.js",
     "./research/answer-synthesizer": "./src/research/answer-synthesizer.js",
-    "./research/answer-synthesizer.js": "./src/research/answer-synthesizer.js"
+    "./research/answer-synthesizer.js": "./src/research/answer-synthesizer.js",
+    "./research/answer-mode": "./src/research/answer-mode.js",
+    "./research/answer-mode.js": "./src/research/answer-mode.js",
+    "./research/answer-renderers": "./src/research/answer-renderers.js",
+    "./research/answer-renderers.js": "./src/research/answer-renderers.js"
   },
   "dependencies": {
     "@rlm-forge/clients": "*",
     "@rlm-forge/database": "*",
     "@rlm-forge/retrieval": "*",
     "@rlm-forge/queue": "*"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.8",
+    "@types/node": "^22.10.2"
   }
 }

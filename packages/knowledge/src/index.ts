@@ -27,3 +27,4 @@ export * from "./agents/search-planner.agent.js";
 export * from "./agents/memory-agent.js";
 export * from "./memory/memory-types.js";
 export * from "./memory/memory-manager.js";
+export { isFreshnessRequired } from "./research/source-ranker.js";

@@ -73,3 +73,23 @@
 - Answer rendering can remain deterministic while still feeling useful.
 - The answer layer should never introduce new facts; it should only reorganize verified evidence.
 - Optional LLM polish should come after deterministic modes, not before.
+
+## Research Engine v2 Slice 8
+
+- After a large deterministic pipeline lands, tests are the next feature.
+- Public package exports must match README-documented modules.
+- Renderer code should share helpers for common sections, citations, and claim formatting.
+- Unit tests should lock down evidence safety before adding LLM polish or GraphAgent.
+
+## Research Engine v2 Slice 9
+
+- Integration tests should mock boundaries, not internals: search, crawl, ingestion, and memory are enough.
+- Orchestrator tests should verify contract shape, not every implementation detail.
+- CI should protect the deterministic research backbone before adding GraphAgent, swarms, or LLM polish.
+
+## Research Engine v2 Slice 10
+
+- Freshness is query-dependent. It matters for pricing, rate limits, versions, releases, and deprecations, but should not dominate stable documentation queries.
+- Domain diversity should be a selection policy, not a replacement for authority scoring.
+- Official docs without publication dates should not be punished heavily.
+- Ranking changes need tests because small score changes can silently damage retrieval quality.

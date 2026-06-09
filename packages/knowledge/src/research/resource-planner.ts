@@ -1,7 +1,10 @@
 import { DOC_REGISTRY } from "../registry/doc-registry.js";
 import type { RankedResource, ResourceCandidate } from "./source-types.js";
 import { buildFallbackSearchQueries, normalizeResearchQuery } from "./query-builder.js";
-import { rankResourceCandidates } from "./source-ranker.js";
+import {
+  isFreshnessRequired,
+  rankResourceCandidates,
+} from "./source-ranker.js";
 import { searchResourceCandidates } from "./search-provider.js";
 import type { ResourceMemoryHint } from "./memory-ranking.js";
 
@@ -17,6 +20,7 @@ export async function planResources(input: {
   const normalizedQuery = normalizeResearchQuery(input.query);
   const maxSources = input.maxSources ?? 10;
   const memoryHints = input.memoryHints ?? [];
+  const freshnessRequired = isFreshnessRequired(normalizedQuery);
 
   const registryResources = rankResourceCandidates(
     normalizedQuery,
@@ -25,6 +29,8 @@ export async function planResources(input: {
       maxSources,
       minScore: 45,
       memoryHints,
+      maxPerDomain: 2,
+      freshnessRequired,
     }
   );
 
@@ -53,6 +59,8 @@ export async function planResources(input: {
       maxSources,
       minScore: 25,
       memoryHints,
+      maxPerDomain: 2,
+      freshnessRequired,
     }),
   };
 }
