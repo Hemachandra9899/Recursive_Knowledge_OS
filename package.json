@@ -20,6 +20,8 @@
     "prisma:generate": "prisma generate --schema=prisma/schema.prisma",
     "prisma:migrate": "prisma migrate dev --schema=prisma/schema.prisma",
     "prisma:studio": "prisma studio --schema=prisma/schema.prisma",
+    "typecheck:api": "npm --workspace apps/api run typecheck",
+    "test:api": "npm --workspace apps/api run test",
     "typecheck:knowledge": "npm --workspace packages/knowledge run typecheck",
     "test:knowledge": "npm --workspace packages/knowledge test",
     "test:providers": "npm --workspace packages/knowledge run test:providers"

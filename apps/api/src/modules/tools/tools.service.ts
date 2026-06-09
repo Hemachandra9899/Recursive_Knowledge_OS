@@ -20,6 +20,7 @@ import type {
   SearchKbInput,
   WebResearchInput,
 } from "./tools.schema.js";
+import { buildResearchResponse } from "./research-response-contract.js";
 
 const MODEL_SERVICE_URL =
   process.env.MODEL_SERVICE_URL || "http://model-service:8100";
@@ -116,7 +117,7 @@ export async function planResearchResources(input: PlanResourcesInput) {
 export async function webResearch(input: WebResearchInput) {
   if (input.useOrchestrator) {
     const orchestrator = new ResearchOrchestrator();
-    return orchestrator.run({
+    const raw = await orchestrator.run({
       projectId: input.projectId,
       query: input.query,
       maxSources: input.maxResults,
@@ -124,6 +125,7 @@ export async function webResearch(input: WebResearchInput) {
       maxTotalPages: input.maxTotalPages,
       maxDepth: input.maxDepth,
     });
+    return buildResearchResponse(raw);
   }
 
   const maxSources = input.maxResults ?? 10;
