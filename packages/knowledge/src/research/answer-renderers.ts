@@ -459,6 +459,17 @@ export function buildNoEvidenceAnswer(evidencePack: EvidencePack, mode: string):
     weakEvidenceCount: 0,
     omittedUnsupportedCount: evidencePack.coverage.unsupportedClaimCount,
     confidence: 0,
+    groundingAudit: {
+      status: "pass",
+      citationIdsReferenced: [],
+      citationIdsDeclared: [],
+      missingCitationIds: [],
+      unusedCitationIds: [],
+      unsupportedCitationIds: [],
+      groundedClaimCount: 0,
+      issueCount: 0,
+      issues: [],
+    },
   };
 }
 

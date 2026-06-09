@@ -7,6 +7,7 @@ import {
   confidenceForAnswer,
   renderMarkdownForMode,
 } from "./answer-renderers.js";
+import { auditAnswer } from "./answer-grounding.js";
 
 export function synthesizeAnswerFromEvidencePack(input: {
   query: string;
@@ -44,6 +45,8 @@ export function synthesizeAnswerFromEvidencePack(input: {
     status,
   });
 
+  const groundingAudit = auditAnswer(markdown, citations, rows);
+
   return {
     status,
     mode,
@@ -54,5 +57,6 @@ export function synthesizeAnswerFromEvidencePack(input: {
     weakEvidenceCount,
     omittedUnsupportedCount: input.evidencePack.coverage.unsupportedClaimCount,
     confidence: confidenceForAnswer(rows),
+    groundingAudit,
   };
 }

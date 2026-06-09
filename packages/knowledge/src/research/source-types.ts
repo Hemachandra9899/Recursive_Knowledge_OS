@@ -103,6 +103,18 @@ export type AnswerMode =
   | "research_summary"
   | "general";
 
+export type GroundingAudit = {
+  status: "pass" | "fail" | "warn";
+  citationIdsReferenced: number[];
+  citationIdsDeclared: number[];
+  missingCitationIds: number[];
+  unusedCitationIds: number[];
+  unsupportedCitationIds: number[];
+  groundedClaimCount: number;
+  issueCount: number;
+  issues: string[];
+};
+
 export type SynthesizedAnswer = {
   status: "answered" | "partial" | "insufficient_evidence";
   mode: AnswerMode;
@@ -113,4 +125,5 @@ export type SynthesizedAnswer = {
   weakEvidenceCount: number;
   omittedUnsupportedCount: number;
   confidence: number;
+  groundingAudit: GroundingAudit;
 };
