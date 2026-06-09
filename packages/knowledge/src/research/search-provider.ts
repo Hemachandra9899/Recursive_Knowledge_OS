@@ -1,80 +1,77 @@
 import type { ResourceCandidate } from "./source-types.js";
-import { inferTierFromUrl } from "./source-ranker.js";
+import { isFreshnessRequired } from "./source-ranker.js";
+import {
+  getConfiguredSearchProviders,
+  type SearchProvider,
+} from "./search-providers/index.js";
+import { normalizeUrl } from "./search-providers/utils.js";
 
-function getFirecrawlApiKey() {
-  return process.env.FIRECRAWL_API_KEY || "";
-}
+export type SearchResourceCandidateOptions = {
+  freshnessRequired?: boolean;
+  providers?: SearchProvider[];
+};
 
-function pickUrl(row: any): string {
-  return row?.url || row?.metadata?.sourceURL || "";
-}
+function mergeProviderResults(results: ResourceCandidate[]): ResourceCandidate[] {
+  const byUrl = new Map<string, ResourceCandidate>();
 
-function pickPublishedAt(row: any): string | undefined {
-  return (
-    row?.publishedAt ||
-    row?.published_at ||
-    row?.date ||
-    row?.updatedAt ||
-    row?.updated_at ||
-    row?.metadata?.publishedAt ||
-    row?.metadata?.published_at ||
-    row?.metadata?.date ||
-    row?.metadata?.updatedAt ||
-    row?.metadata?.updated_at
-  );
+  for (const result of results) {
+    const key = normalizeUrl(result.url);
+    const existing = byUrl.get(key);
+
+    if (!existing) {
+      byUrl.set(key, result);
+      continue;
+    }
+
+    byUrl.set(key, {
+      ...existing,
+      publishedAt: existing.publishedAt ?? result.publishedAt,
+      topics: [...new Set([...(existing.topics ?? []), ...(result.topics ?? [])])],
+      keywords: [
+        ...new Set([...(existing.keywords ?? []), ...(result.keywords ?? [])]),
+      ],
+      metadata: {
+        ...(existing.metadata ?? {}),
+        alternateProviders: [
+          ...new Set([
+            ...((existing.metadata?.alternateProviders as string[]) ?? []),
+            result.metadata?.provider as string,
+          ].filter(Boolean)),
+        ],
+      },
+      reason: `${existing.reason} Also discovered by ${result.metadata?.provider ?? "another provider"}.`,
+    });
+  }
+
+  return [...byUrl.values()];
 }
 
 export async function searchResourceCandidates(
   query: string,
-  limit = 5
+  limit = 5,
+  options: SearchResourceCandidateOptions = {}
 ): Promise<ResourceCandidate[]> {
-  const apiKey = getFirecrawlApiKey();
+  const providers = options.providers ?? getConfiguredSearchProviders();
+  if (providers.length === 0) return [];
 
-  if (!apiKey) return [];
+  const freshnessRequired =
+    options.freshnessRequired ?? isFreshnessRequired(query);
 
-  const response = await fetch("https://api.firecrawl.dev/v1/search", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      query,
-      limit,
-    }),
-  });
+  const perProviderLimit = Math.max(3, Math.ceil(limit / providers.length) + 2);
 
-  if (!response.ok) {
-    return [];
-  }
+  const settled = await Promise.allSettled(
+    providers.map((provider) =>
+      provider.search({
+        query,
+        limit: perProviderLimit,
+        freshnessRequired,
+      })
+    )
+  );
 
-  const data = await response.json();
-  const rows = Array.isArray(data?.data)
-    ? data.data
-    : Array.isArray(data?.results)
-      ? data.results
-      : [];
+  const results = settled.flatMap((item) =>
+    item.status === "fulfilled" ? item.value : []
+  );
 
-  return rows
-    .map((row: any) => {
-      const url = pickUrl(row);
-      if (!url) return null;
-
-      return {
-        title: row?.title || url,
-        url,
-        tier: inferTierFromUrl(url),
-        topics: [],
-        keywords: [],
-        reason: "Discovered by web search fallback.",
-        source: "web_search" as const,
-        publishedAt: pickPublishedAt(row),
-        metadata: {
-          provider: "firecrawl",
-          description: row?.description,
-          rawScore: row?.score,
-        },
-      };
-    })
-    .filter(Boolean) as ResourceCandidate[];
+  return mergeProviderResults(results).slice(0, limit * 3);
 }

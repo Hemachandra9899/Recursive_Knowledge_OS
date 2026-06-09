@@ -389,6 +389,30 @@ private workspace connectors
 
 ---
 
+---
+
+## Multi-provider search
+
+Scout can search through multiple providers when API keys are configured:
+
+```text
+FIRECRAWL_API_KEY
+TAVILY_API_KEY
+GITHUB_TOKEN
+```
+
+Provider behavior:
+
+| Provider | Used for |
+| --- | --- |
+| Firecrawl | Existing general web search fallback |
+| Tavily | Main web search provider |
+| GitHub | Repository discovery for SDKs, clients, examples, and implementation references |
+
+Brave Search is intentionally not used for now.
+
+Search providers are optional. Scout uses whatever is configured and deduplicates URLs across providers before ranking.
+
 ## Roadmap
 
 ### Now

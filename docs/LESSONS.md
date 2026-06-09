@@ -93,3 +93,11 @@
 - Domain diversity should be a selection policy, not a replacement for authority scoring.
 - Official docs without publication dates should not be punished heavily.
 - Ranking changes need tests because small score changes can silently damage retrieval quality.
+
+## Research Engine v2 Slice 11
+
+- Search providers should be adapters, not core ranking logic.
+- Provider failures should be isolated with Promise.allSettled so one bad provider does not kill a research run.
+- GitHub search is valuable for implementation questions, but it should not run for every general web query.
+- Provider dedupe should happen before ranking to avoid over-counting the same URL.
+- Do not add paid providers if they are not needed; Tavily + GitHub + existing Firecrawl is enough for now.

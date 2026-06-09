@@ -197,3 +197,23 @@ This file tracks the next implementation steps for Scout Research Engine v2.
 - [ ] Run a real freshness query smoke test.
 - [ ] Tune freshness penalties after observing real search results.
 - [ ] Consider source freshness/diversity telemetry in trace output.
+
+## Done in v2 Slice 11
+
+- [x] Added multi-provider search abstraction without Brave.
+- [x] Added Firecrawl, Tavily, and GitHub search providers.
+- [x] Added provider-level tests with mocked fetch.
+- [x] Deduped URLs across providers.
+- [x] Passed freshness intent into providers.
+- [x] Added `.env.example` entries for Firecrawl, Tavily, and GitHub.
+
+## Now
+
+### Provider quality
+
+- [ ] Run `npm run typecheck:knowledge`.
+- [ ] Run `npm run test:knowledge`.
+- [ ] Run smoke test with Tavily only.
+- [ ] Run smoke test with GitHub token for SDK/repository queries.
+- [ ] Run smoke test with Firecrawl + Tavily together if Firecrawl key is available.
+- [ ] Tune provider budgets after observing real results.

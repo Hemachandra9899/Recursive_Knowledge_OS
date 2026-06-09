@@ -46,7 +46,9 @@ export async function planResources(input: {
   const searchCandidates: ResourceCandidate[] = [];
 
   for (const query of fallbackQueries) {
-    const results = await searchResourceCandidates(query, 5);
+    const results = await searchResourceCandidates(query, 5, {
+      freshnessRequired,
+    });
     searchCandidates.push(...results);
   }
 

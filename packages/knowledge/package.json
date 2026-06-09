@@ -52,7 +52,9 @@
     "./research/answer-mode": "./src/research/answer-mode.js",
     "./research/answer-mode.js": "./src/research/answer-mode.js",
     "./research/answer-renderers": "./src/research/answer-renderers.js",
-    "./research/answer-renderers.js": "./src/research/answer-renderers.js"
+    "./research/answer-renderers.js": "./src/research/answer-renderers.js",
+    "./research/search-providers": "./src/research/search-providers/index.js",
+    "./research/search-providers.js": "./src/research/search-providers/index.js"
   },
   "dependencies": {
     "@rlm-forge/clients": "*",
