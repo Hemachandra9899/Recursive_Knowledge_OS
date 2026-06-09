@@ -224,6 +224,8 @@ describe("ResearchOrchestrator integration", () => {
         acceptedPages: 2,
         skippedPages: 0,
         rejectedByQuality: 0,
+        rejectedByDuplicateUrl: 0,
+        rejectedByDuplicateContent: 0,
         sourcesWithContent: 2,
         sourcesSkipped: 0,
         retryCount: 0,

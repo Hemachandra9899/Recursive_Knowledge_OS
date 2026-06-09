@@ -5,6 +5,7 @@ import { extractEvidenceFromPages } from "./evidence-extractor.js";
 import { scorePageQuality, type ContentQuality } from "./crawl-quality.js";
 import { getFallbackMode, shouldRetry } from "./crawl-retry-policy.js";
 import type { ResourceCrawlTrace } from "./crawl-retry-policy.js";
+import { checkDedupe } from "./crawl-dedupe.js";
 
 export type CrawlManagerInput = {
   projectId: string;
@@ -36,6 +37,8 @@ export type CrawlTrace = {
   acceptedPages: number;
   skippedPages: number;
   rejectedByQuality: number;
+  rejectedByDuplicateUrl: number;
+  rejectedByDuplicateContent: number;
   sourcesWithContent: number;
   sourcesSkipped: number;
   retryCount: number;
@@ -74,10 +77,14 @@ function processCrawlResult(
   pages: CrawledResearchPage[],
   failed: CrawlManagerOutput["failed"],
   skipped: SkippedCrawl[],
-  maxTotalPages: number
-): { accepted: number; skipped: number; failedCount: number } {
+  maxTotalPages: number,
+  seenCanonicalUrls: Set<string>,
+  seenContentHashes: Set<string>
+): { accepted: number; qualityRejectCount: number; failedCount: number; dupeUrlCount: number; dupeContentCount: number } {
   let accepted = 0;
-  let skippedCount = 0;
+  let qualityRejectCount = 0;
+  let dupeUrlCount = 0;
+  let dupeContentCount = 0;
 
   for (const failedUrl of crawl.failedUrls ?? []) {
     failed.push({
@@ -93,6 +100,19 @@ function processCrawlResult(
 
     const quality = scorePageQuality(page.markdown);
 
+    if (quality.status === "reject") {
+      skipped.push({
+        title: page.title || resource.title,
+        url: page.url,
+        reason: `Quality check failed (score=${quality.score}): ${quality.flags.join(", ")}`,
+        quality,
+      });
+      qualityRejectCount++;
+      continue;
+    }
+
+    const dedupe = checkDedupe(page.url, page.markdown, seenCanonicalUrls, seenContentHashes);
+
     const crawledPage: CrawledResearchPage = {
       title: page.title || resource.title,
       url: page.url,
@@ -102,6 +122,9 @@ function processCrawlResult(
       metadata: {
         ...page.metadata,
         contentQuality: quality,
+        canonicalUrl: dedupe.canonicalUrl,
+        contentHash: dedupe.contentHash,
+        dedupeStatus: dedupe.dedupeStatus,
         rootUrl: resource.url,
         sourceTier: resource.tier,
         sourceScore: resource.score,
@@ -109,14 +132,25 @@ function processCrawlResult(
       },
     };
 
-    if (quality.status === "reject") {
+    if (dedupe.dedupeStatus === "duplicate_url") {
       skipped.push({
         title: crawledPage.title,
         url: crawledPage.url,
-        reason: `Quality check failed (score=${quality.score}): ${quality.flags.join(", ")}`,
+        reason: `Duplicate URL: ${dedupe.canonicalUrl}`,
         quality,
       });
-      skippedCount++;
+      dupeUrlCount++;
+      continue;
+    }
+
+    if (dedupe.dedupeStatus === "duplicate_content") {
+      skipped.push({
+        title: crawledPage.title,
+        url: crawledPage.url,
+        reason: `Duplicate content hash: ${dedupe.contentHash}`,
+        quality,
+      });
+      dupeContentCount++;
       continue;
     }
 
@@ -124,7 +158,13 @@ function processCrawlResult(
     pages.push(crawledPage);
   }
 
-  return { accepted, skipped: skippedCount, failedCount: (crawl.failedUrls ?? []).length };
+  return {
+    accepted,
+    qualityRejectCount,
+    failedCount: (crawl.failedUrls ?? []).length,
+    dupeUrlCount,
+    dupeContentCount,
+  };
 }
 
 export async function crawlResearchSources(
@@ -138,10 +178,15 @@ export async function crawlResearchSources(
   const failed: CrawlManagerOutput["failed"] = [];
   const skipped: SkippedCrawl[] = [];
   const resourceTraces: ResourceCrawlTrace[] = [];
+  const seenCanonicalUrls = new Set<string>();
+  const seenContentHashes = new Set<string>();
   let totalPagesCrawled = 0;
   let sourcesWithContent = 0;
   let sourcesSkipped = 0;
   let retryCount = 0;
+  let totalDupeUrlCount = 0;
+  let totalDupeContentCount = 0;
+  let totalQualityRejectCount = 0;
 
   for (const resource of input.resources) {
     if (pages.length >= maxTotalPages) break;
@@ -181,18 +226,22 @@ export async function crawlResearchSources(
         totalPagesCrawled += (crawl.pages ?? []).length;
 
         const result = processCrawlResult(
-          resource, crawl, pages, failed, skipped, maxTotalPages
+          resource, crawl, pages, failed, skipped, maxTotalPages,
+          seenCanonicalUrls, seenContentHashes
         );
 
         resourceAcceptedCount += result.accepted;
-        resourceSkippedCount += result.skipped;
+        resourceSkippedCount += result.qualityRejectCount;
         resourceFailedCount += result.failedCount;
+        totalQualityRejectCount += result.qualityRejectCount;
+        totalDupeUrlCount += result.dupeUrlCount;
+        totalDupeContentCount += result.dupeContentCount;
 
         if (result.accepted > 0) break;
 
         const retryDecision = shouldRetry({
           acceptedPages: result.accepted,
-          skippedPages: result.skipped,
+          skippedPages: result.qualityRejectCount,
           failedUrls: result.failedCount,
           returnedPages: (crawl.pages ?? []).length,
         });
@@ -265,7 +314,9 @@ export async function crawlResearchSources(
       totalPagesCrawled,
       acceptedPages: pages.length,
       skippedPages: skipped.length,
-      rejectedByQuality: skipped.length,
+      rejectedByQuality: totalQualityRejectCount,
+      rejectedByDuplicateUrl: totalDupeUrlCount,
+      rejectedByDuplicateContent: totalDupeContentCount,
       sourcesWithContent,
       sourcesSkipped,
       retryCount,
