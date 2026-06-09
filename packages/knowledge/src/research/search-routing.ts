@@ -10,19 +10,13 @@ export type ProviderRoute = {
 };
 
 const CODE_QUERY_PATTERN =
-  /\b(github|repo|repository|code|sdk|client|package|library|implementation|example|readme|open source|oss|typescript|npm|pip|go get|install)\b/i;
+  /\b(github|repo|repository|sdk|client|library|implementation|readme|open source|oss|typescript|npm|pip|go get|install)\b/i;
 
 const FRESHNESS_QUERY_PATTERN =
   /\b(latest|current|recent|today|now|new|updated|202[4-9]|version|changelog|release|pricing|rate limit|deprecated|deprecation)\b/i;
 
-const CODE_OVERRIDE_PATTERN = /\b(?!.*\bweather\b)(github|sdk|repo|repository)\b/i;
-
 export function determineProviderRoute(query: string): ProviderRoute {
-  const isCodeQuery = CODE_QUERY_PATTERN.test(query);
-  const isFreshnessQuery = FRESHNESS_QUERY_PATTERN.test(query) && !isCodeQuery;
-  const isCodeOverride = CODE_OVERRIDE_PATTERN.test(query);
-
-  if (isCodeQuery || isCodeOverride) {
+  if (CODE_QUERY_PATTERN.test(query)) {
     return {
       routeKind: "code",
       routeReason: "Code, SDK, repository, or implementation query.",
@@ -31,7 +25,7 @@ export function determineProviderRoute(query: string): ProviderRoute {
     };
   }
 
-  if (isFreshnessQuery) {
+  if (FRESHNESS_QUERY_PATTERN.test(query)) {
     return {
       routeKind: "freshness",
       routeReason: "Freshness-sensitive query detected (latest, pricing, versions, deprecations).",
