@@ -233,3 +233,21 @@ This file tracks the next implementation steps for Scout Research Engine v2.
 - [ ] Run Firecrawl + Tavily provider smoke test if Firecrawl key is available.
 - [ ] Inspect returned domains and tune provider budgets if needed.
 - [ ] Commit and push Step 12 + Step 13 changes.
+
+## Done in v2 Slice 13
+
+- [x] Added provider budgets/config with env-based overrides.
+- [x] Added route-specific budgets (docs / freshness / code).
+- [x] Added `budgets` field to searchTrace metadata.
+- [x] Added budget-config tests and budget integration tests.
+- [x] Disabled GitHub on non-code routes by default.
+- [x] Ran provider smoke tests.
+
+## Now
+
+### Crawler quality
+
+- [ ] Improve Scrapling route validation.
+- [ ] Add crawl trace metadata.
+- [ ] Write failed URL memory on crawl failures.
+- [ ] Add content-quality scoring.

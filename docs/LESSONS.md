@@ -108,3 +108,11 @@
 - Provider smoke tests should validate contract shape, not exact search result content.
 - Aggregated provider tests should check dedupe and provider metadata.
 - Keep Brave disabled if it is not part of the current cost plan.
+
+## Research Engine v2 Slice 13
+
+- Provider budgets should be route-aware, not uniform across all query types.
+- Env-based control (TAVILY_ENABLED, TAVILY_MAX_RESULTS) is simple and familiar.
+- GitHub should be disabled by default on non-code routes to conserve API budget.
+- Budget info in searchTrace makes provider behavior debuggable in production.
+- The next quality focus should be crawler reliability and content-quality scoring, not new search providers.

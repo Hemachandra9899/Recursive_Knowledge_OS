@@ -7,6 +7,7 @@ import {
 } from "./search-providers/index.js";
 import type { SearchProviderName } from "./search-providers/types.js";
 import { normalizeUrl } from "./search-providers/utils.js";
+import { getRouteBudgets } from "./search-provider-config.js";
 
 export type SearchResourceCandidateOptions = {
   freshnessRequired?: boolean;
@@ -17,6 +18,7 @@ type ProviderRunTrace = {
   provider: SearchProviderName;
   status: "fulfilled" | "rejected" | "skipped";
   resultCount: number;
+  budget: number;
 };
 
 function mergeProviderResults(results: ResourceCandidate[]): ResourceCandidate[] {
@@ -63,6 +65,7 @@ export async function searchResourceCandidates(
   if (allProviders.length === 0) return [];
 
   const route = determineProviderRoute(query);
+  const routeBudgets = getRouteBudgets(route.routeKind);
 
   const freshnessRequired =
     options.freshnessRequired ?? route.freshnessRequired ?? isFreshnessRequired(query);
@@ -72,26 +75,32 @@ export async function searchResourceCandidates(
   const runs: ProviderRunTrace[] = [];
 
   for (const name of route.selectedProviders) {
-    const provider = providerByName.get(name);
-    if (provider) {
-      selectedProviders.push(provider);
-    } else {
-      runs.push({ provider: name, status: "skipped", resultCount: 0 });
+    const budget = routeBudgets[name];
+    if (!budget || !budget.enabled) {
+      runs.push({ provider: name, status: "skipped", budget: budget?.maxResults ?? 0, resultCount: 0 });
+      continue;
     }
+
+    const provider = providerByName.get(name);
+    if (!provider) {
+      runs.push({ provider: name, status: "skipped", budget: budget.maxResults, resultCount: 0 });
+      continue;
+    }
+
+    selectedProviders.push(provider);
   }
 
   if (selectedProviders.length === 0) return [];
 
-  const perProviderLimit = Math.max(3, Math.ceil(limit / selectedProviders.length) + 2);
-
   const settled = await Promise.allSettled(
-    selectedProviders.map((provider) =>
-      provider.search({
+    selectedProviders.map((provider) => {
+      const budget = routeBudgets[provider.name];
+      return provider.search({
         query,
-        limit: perProviderLimit,
+        limit: budget.maxResults,
         freshnessRequired,
-      })
-    )
+      });
+    })
   );
 
   const results: ResourceCandidate[] = [];
@@ -99,12 +108,13 @@ export async function searchResourceCandidates(
   for (let i = 0; i < settled.length; i++) {
     const item = settled[i];
     const providerName = selectedProviders[i].name;
+    const budget = routeBudgets[providerName];
 
     if (item.status === "fulfilled") {
       results.push(...item.value);
-      runs.push({ provider: providerName, status: "fulfilled", resultCount: item.value.length });
+      runs.push({ provider: providerName, status: "fulfilled", budget: budget.maxResults, resultCount: item.value.length });
     } else {
-      runs.push({ provider: providerName, status: "rejected", resultCount: 0 });
+      runs.push({ provider: providerName, status: "rejected", budget: budget.maxResults, resultCount: 0 });
     }
   }
 
@@ -115,6 +125,7 @@ export async function searchResourceCandidates(
     routeReason: route.routeReason,
     selectedProviders: route.selectedProviders,
     freshnessRequired,
+    budgets: routeBudgets,
     runs,
   };
 
