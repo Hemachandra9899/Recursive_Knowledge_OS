@@ -59,6 +59,13 @@ export type ResearchOrchestratorOutput = {
     url?: string;
     reason: string;
   }>;
+  skippedCrawls: Array<{
+    title: string;
+    url: string;
+    reason: string;
+    quality: import("./crawl-quality.js").ContentQuality;
+  }>;
+  crawlTrace: import("./crawl-manager.js").CrawlTrace;
   evidencePack: EvidencePack;
   answer: SynthesizedAnswer;
 };
@@ -278,6 +285,13 @@ export class ResearchOrchestrator {
       },
       documents,
       failedCrawls: crawl.failed,
+      skippedCrawls: crawl.skipped.map((s) => ({
+        title: s.title,
+        url: s.url,
+        reason: s.reason,
+        quality: s.quality,
+      })),
+      crawlTrace: crawl.trace,
       evidencePack,
       answer,
     };

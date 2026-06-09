@@ -116,3 +116,11 @@
 - GitHub should be disabled by default on non-code routes to conserve API budget.
 - Budget info in searchTrace makes provider behavior debuggable in production.
 - The next quality focus should be crawler reliability and content-quality scoring, not new search providers.
+
+## Research Engine v2 Slice 14
+
+- Content quality scoring should be deterministic, not LLM-based, so it can be tested and tuned.
+- Navigation-heavy, blocked, and tiny pages should be rejected before evidence extraction, not after.
+- Crawl trace metadata makes crawler behavior debuggable in production smoke tests.
+- Skipped pages should not silently disappear; they should be recorded for memory and debugging.
+- The next quality improvement should be crawl retry with different modes (auto → dynamic → stealth).

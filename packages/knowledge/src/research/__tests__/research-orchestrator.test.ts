@@ -218,6 +218,15 @@ describe("ResearchOrchestrator integration", () => {
         },
       ],
       failed: [],
+      skipped: [],
+      trace: {
+        totalPagesCrawled: 2,
+        acceptedPages: 2,
+        skippedPages: 0,
+        rejectedByQuality: 0,
+        sourcesWithContent: 2,
+        sourcesSkipped: 0,
+      },
     });
 
     ingestMarkdownDocumentMock

@@ -251,3 +251,12 @@ This file tracks the next implementation steps for Scout Research Engine v2.
 - [ ] Add crawl trace metadata.
 - [ ] Write failed URL memory on crawl failures.
 - [ ] Add content-quality scoring.
+
+## Done in v2 Slice 14
+
+- [x] Added deterministic Markdown quality scoring.
+- [x] Added crawl-quality.ts with word count, unique word ratio, link-like ratio, and blocked content detection.
+- [x] Updated crawl-manager.ts to reject low-quality pages before evidence extraction.
+- [x] Added skippedCrawls and crawlTrace to ResearchOrchestrator output.
+- [x] Added quality metadata to crawled documents.
+- [x] Added tests for crawl-quality scoring.
