@@ -40,6 +40,8 @@ export class ToolsClient {
         return "/tools/query-graph";
       case "web_research":
         return "/tools/web-research";
+      case "github_repo":
+        return "/tools/github-repo";
       default:
         throw new Error(`Unknown tool: ${name}`);
     }

@@ -32,6 +32,7 @@ Async tools:
 - await web_research(query, max_results=3)
 - await crawl_url(url, max_pages=1)
 - await query_graph(query, depth=1)
+- await github_repo(url, mode="summary", max_files=30)
 
 Sync tools:
 - print(value)
@@ -136,7 +137,7 @@ final:
 ${finalText}
 
 Next:
-- If finalCalled=true and error=None, stop.
+- If finalCalled=true and error=None, stop only if runtime policy accepted the final answer. If runtime rejected the final answer, call the missing required tool and produce a real answer.
 - If there is an error, fix it.
 - If more work is needed, write the next Python code block.
 `.trim();
@@ -220,6 +221,50 @@ function validateFinalBeforeStop(input: { final: unknown; toolsCalled: string[];
   return null;
 }
 
+function extractGithubUrl(query: string): string | null {
+  const m = query.match(/https?:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+(?:[/?#][^\s]*)?/i);
+  return m?.[0] ?? null;
+}
+
+async function tryToolFirstPath(input: {
+  fastIntent: FastIntent;
+  query: string;
+  subAgentHandler: SubAgentHandler;
+  toolHandler: ToolHandler;
+  sandbox: PythonSandbox;
+}): Promise<{ execution: PythonExecutionResult; step: RlmStep } | null> {
+  let code = "";
+  if (input.fastIntent.intent === "github_repo") {
+    const url = extractGithubUrl(input.query);
+    if (!url) return null;
+    code = `result = await github_repo(${JSON.stringify(url)}, mode="summary", max_files=30)\nif isinstance(result, dict):\n    answer = result.get("answer") or result.get("repo") or str(result.get("status", ""))\nelse:\n    answer = str(result)\nfinal(answer)`;
+  } else if (input.fastIntent.intent === "news" || input.fastIntent.intent === "web_research") {
+    code = `research = await web_research(${JSON.stringify(input.query)}, max_results=3, max_pages_per_source=1, max_total_pages=5, max_depth=1)\nif isinstance(research, dict) and "ui" in research:\n    final(research["ui"].get("answerMarkdown") or research)\nelse:\n    final(research)`;
+  } else {
+    return null;
+  }
+  try {
+    const execution = await input.sandbox.execute(code, input.subAgentHandler, input.toolHandler);
+    if (execution.finalCalled && !execution.error && execution.final !== null) {
+      return {
+        execution,
+        step: {
+          stepIndex: 0,
+          generatedCode: code,
+          stdout: execution.stdout,
+          final: execution.final,
+          finalCalled: execution.finalCalled,
+          error: execution.error,
+          toolCalls: execution.toolCalls ?? [],
+        },
+      };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export class RlmLoop {
   private readonly modelClient: ModelClient;
   private readonly sandbox: PythonSandbox;
@@ -254,10 +299,11 @@ export class RlmLoop {
     const steps: RlmStep[] = [];
 
     const fastIntent = depth === 0 ? await this.fastIntentDetector.detect(req.query) : null;
-    const intent = depth === 0 ? await this.intentDetector.detect(req.query) : null;
+
+    const intent = depth === 0 && !fastIntent ? await this.intentDetector.detect(req.query) : null;
 
     const strategy =
-      depth === 0
+      depth === 0 && !fastIntent
         ? await this.strategyAgent.plan(req.query)
         : {
             enabled: false,
@@ -265,7 +311,7 @@ export class RlmLoop {
             bestMethod: "direct_answer",
             shouldUseTools: false,
             methods: [],
-            reason: "Strategy skipped for child agent.",
+            reason: fastIntent ? "Strategy skipped for fast intent." : "Strategy skipped for child agent.",
           };
 
     const intentRecord = toRecord(intent);
@@ -366,7 +412,42 @@ export class RlmLoop {
     );
 
     try {
-      for (let stepIndex = 0; stepIndex < maxSteps; stepIndex++) {
+      const toolsCalled = new Set<string>();
+
+      if (depth === 0 && fastIntent && fastIntent.answerMode === "fast") {
+        const fastResult = await tryToolFirstPath({
+          fastIntent,
+          query: normalizedQuery,
+          subAgentHandler,
+          toolHandler,
+          sandbox: this.sandbox,
+        });
+        if (fastResult) {
+          const { execution, step } = fastResult;
+          for (const t of execution.toolCalls ?? []) toolsCalled.add(String(t));
+          steps.push(step);
+          const finalRejection = validateFinalBeforeStop({ final: execution.final, toolsCalled: [...toolsCalled], fastIntent, depth });
+          if (!finalRejection) {
+            const finalized = await finalizeAnswer(execution.final);
+            return {
+              status: "completed",
+              runId: req.runId,
+              projectId: req.projectId,
+              query: req.query,
+              depth,
+              maxDepth,
+              final: finalized.final,
+              sources: finalized.sources,
+              steps,
+              error: null,
+            };
+          }
+          messages.push({ role: "assistant", content: step.generatedCode });
+          messages.push({ role: "user", content: buildExecutionFeedback(step) + "\n\n" + finalRejection });
+        }
+      }
+
+      for (let stepIndex = steps.length; stepIndex < maxSteps; stepIndex++) {
         if (isContextTooLarge(messages, maxContextTokens)) {
           return {
             status: "failed",
@@ -391,7 +472,9 @@ export class RlmLoop {
           toolHandler
         );
 
-        const toolsCalled: string[] = Array.isArray(execution.toolCalls) ? execution.toolCalls.map(String) : [];
+        for (const tool of execution.toolCalls ?? []) {
+          toolsCalled.add(String(tool));
+        }
 
         const step: RlmStep = {
           stepIndex,
@@ -400,6 +483,7 @@ export class RlmLoop {
           final: execution.final,
           finalCalled: execution.finalCalled,
           error: execution.error,
+          toolCalls: execution.toolCalls ?? [],
         };
 
         steps.push(step);
@@ -415,7 +499,7 @@ export class RlmLoop {
         });
 
         if (execution.finalCalled && !execution.error) {
-          const finalRejection = validateFinalBeforeStop({ final: execution.final, toolsCalled, fastIntent, depth });
+          const finalRejection = validateFinalBeforeStop({ final: execution.final, toolsCalled: [...toolsCalled], fastIntent, depth });
           if (finalRejection) {
             messages.push({ role: "user", content: finalRejection });
             continue;
