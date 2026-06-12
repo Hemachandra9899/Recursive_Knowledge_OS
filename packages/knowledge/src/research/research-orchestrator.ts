@@ -35,6 +35,7 @@ export type ResearchOrchestratorOutput = {
     source: string;
     reason: string;
     matchedBy: string[];
+    metadata?: Record<string, unknown>;
   }>;
   memories: {
     retrieved: number;
@@ -283,6 +284,7 @@ export class ResearchOrchestrator {
         source: resource.source,
         reason: resource.reason,
         matchedBy: resource.matchedBy,
+        ...(resource.metadata && Object.keys(resource.metadata).length > 0 ? { metadata: resource.metadata } : {}),
       })),
       memories: {
         retrieved: retrievedMemoryCount,

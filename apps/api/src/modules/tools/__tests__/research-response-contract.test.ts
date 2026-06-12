@@ -150,6 +150,38 @@ describe("buildResearchResponse", () => {
       ]);
     });
 
+    it("preserves resource metadata in ui.resources", () => {
+      const input = {
+        ...baseInput,
+        resourcesPlanned: [
+          {
+            title: "Doc with trace",
+            url: "https://example.com/trace",
+            tier: "official_docs",
+            score: 90,
+            source: "web_search",
+            reason: "Found by search",
+            matchedBy: ["subquery:test"],
+            metadata: {
+              searchTrace: { provider: "tavily", query: "test query", latencyMs: 320 },
+            },
+          },
+        ],
+      };
+      const result = buildResearchResponse(input);
+      expect(result.ui.resources[0].metadata).toBeDefined();
+      expect(result.ui.resources[0].metadata!.searchTrace).toEqual({
+        provider: "tavily",
+        query: "test query",
+        latencyMs: 320,
+      });
+    });
+
+    it("omits metadata from ui.resources when not present", () => {
+      const result = buildResearchResponse(baseInput);
+      expect(result.ui.resources[0].metadata).toBeUndefined();
+    });
+
     it("generates warnings when there are failed crawls", () => {
       const input = {
         ...baseInput,

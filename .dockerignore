@@ -1,0 +1,10 @@
+**/node_modules
+**/.next
+**/*.tsbuildinfo
+**/.env
+**/.env.local
+.git
+**/dist
+**/__pycache__
+**/.venv
+**/.DS_Store

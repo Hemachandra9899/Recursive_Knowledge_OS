@@ -19,6 +19,7 @@ type RawOrchestratorOutput = {
     source?: string;
     reason: string;
     matchedBy?: string[];
+    metadata?: Record<string, unknown>;
   }>;
   memories?: { retrieved: number; written: number; usedForRanking: number; planned?: Record<string, number> };
   documents: Array<Record<string, unknown>>;
@@ -52,6 +53,7 @@ export type ResearchResponseContract = RawOrchestratorOutput & {
       url: string;
       tier: string;
       score: number;
+      metadata?: Record<string, unknown>;
     }>;
     warnings: string[];
   };
@@ -126,6 +128,7 @@ export function buildResearchResponse(
         url: r.url,
         tier: r.tier,
         score: r.score,
+        ...(r.metadata && Object.keys(r.metadata).length > 0 ? { metadata: r.metadata } : {}),
       })),
       warnings,
     },
