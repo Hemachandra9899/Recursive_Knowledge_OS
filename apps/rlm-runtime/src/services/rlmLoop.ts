@@ -8,6 +8,12 @@ import { extractSources, isGenericOrRawAnswer } from "./answerUtils.ts";
 import { IntentDetector } from "./intentDetector.ts";
 import { FastIntentDetector, type FastIntent } from "./fastIntentDetector.ts";
 import { contextLimitMessage, isContextTooLarge } from "./contextGuard.ts";
+import {
+  buildCriticRetryMessage,
+  evaluateAnswerCritic,
+  type AnswerCriticResult,
+  type ToolResultPreview,
+} from "./answerCritic.ts";
 import type {
   AnswerSource,
   ChatMessage,
@@ -414,6 +420,11 @@ export class RlmLoop {
     try {
       const toolsCalled = new Set<string>();
 
+      const answerCriticEnabled = Deno.env.get("RLM_ANSWER_CRITIC_ENABLED") !== "0";
+      const maxCriticRetries = Number(Deno.env.get("RLM_ANSWER_CRITIC_MAX_RETRIES") ?? 1);
+      let criticRetriesUsed = 0;
+      let lastCritic: AnswerCriticResult | null = null;
+
       if (depth === 0 && fastIntent && fastIntent.answerMode === "fast") {
         const fastResult = await tryToolFirstPath({
           fastIntent,
@@ -428,22 +439,59 @@ export class RlmLoop {
           steps.push(step);
           const finalRejection = validateFinalBeforeStop({ final: execution.final, toolsCalled: [...toolsCalled], fastIntent, depth });
           if (!finalRejection) {
-            const finalized = await finalizeAnswer(execution.final);
-            return {
-              status: "completed",
-              runId: req.runId,
-              projectId: req.projectId,
-              query: req.query,
-              depth,
-              maxDepth,
-              final: finalized.final,
-              sources: finalized.sources,
-              steps,
-              error: null,
-            };
+            if (answerCriticEnabled) {
+              const critic = await evaluateAnswerCritic({
+                query: normalizedQuery,
+                answer: execution.final,
+                fastIntentName: fastIntent?.intent ?? null,
+                requiredTools: fastIntent?.requiredTools ?? [],
+                toolsCalled: [...toolsCalled],
+                toolResults: [],
+                modelClient: this.modelClient,
+              });
+              lastCritic = critic;
+              if (!critic.passed && criticRetriesUsed < maxCriticRetries) {
+                criticRetriesUsed += 1;
+                messages.push({ role: "user", content: buildCriticRetryMessage(critic) + `\nCritic retry budget: ${criticRetriesUsed}/${maxCriticRetries}.` });
+                steps.pop();
+                for (const t of execution.toolCalls ?? []) toolsCalled.delete(t);
+                // fall through to for-loop below
+              } else {
+                const finalized = await finalizeAnswer(execution.final);
+                return {
+                  status: "completed",
+                  runId: req.runId,
+                  projectId: req.projectId,
+                  query: req.query,
+                  depth,
+                  maxDepth,
+                  final: finalized.final,
+                  sources: finalized.sources,
+                  steps,
+                  error: null,
+                  critic: lastCritic ?? undefined,
+                  debug: { criticRetriesUsed, criticPassed: lastCritic?.passed, criticScore: lastCritic?.score, criticReason: lastCritic?.reason },
+                };
+              }
+            } else {
+              const finalized = await finalizeAnswer(execution.final);
+              return {
+                status: "completed",
+                runId: req.runId,
+                projectId: req.projectId,
+                query: req.query,
+                depth,
+                maxDepth,
+                final: finalized.final,
+                sources: finalized.sources,
+                steps,
+                error: null,
+              };
+            }
+          } else {
+            messages.push({ role: "assistant", content: step.generatedCode });
+            messages.push({ role: "user", content: buildExecutionFeedback(step) + "\n\n" + finalRejection });
           }
-          messages.push({ role: "assistant", content: step.generatedCode });
-          messages.push({ role: "user", content: buildExecutionFeedback(step) + "\n\n" + finalRejection });
         }
       }
 
@@ -504,8 +552,26 @@ export class RlmLoop {
             messages.push({ role: "user", content: finalRejection });
             continue;
           }
-          const finalized = await finalizeAnswer(execution.final);
 
+          if (answerCriticEnabled) {
+            const critic = await evaluateAnswerCritic({
+              query: normalizedQuery,
+              answer: execution.final,
+              fastIntentName: fastIntent?.intent ?? null,
+              requiredTools: fastIntent?.requiredTools ?? [],
+              toolsCalled: [...toolsCalled],
+              toolResults: [],
+              modelClient: this.modelClient,
+            });
+            lastCritic = critic;
+            if (!critic.passed && criticRetriesUsed < maxCriticRetries) {
+              criticRetriesUsed += 1;
+              messages.push({ role: "user", content: buildCriticRetryMessage(critic) + `\nCritic retry budget: ${criticRetriesUsed}/${maxCriticRetries}.` });
+              continue;
+            }
+          }
+
+          const finalized = await finalizeAnswer(execution.final);
           return {
             status: "completed",
             runId: req.runId,
@@ -517,6 +583,8 @@ export class RlmLoop {
             sources: finalized.sources,
             steps,
             error: null,
+            critic: lastCritic ?? undefined,
+            debug: { toolCallCount: toolsCalled.size, finalRejectedCount: 0, criticRetriesUsed, criticPassed: lastCritic?.passed, criticScore: lastCritic?.score, criticReason: lastCritic?.reason },
           };
         }
       }

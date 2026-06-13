@@ -77,6 +77,30 @@ export type SynthesizedAnswer = {
   sources: AnswerSource[];
 };
 
+export type AnswerCriticMetadata = {
+  passed: boolean;
+  score: number;
+  reason: string;
+  feedback: string;
+  dimensions: {
+    relevance: number;
+    specificity: number;
+    completeness: number;
+    sourceUse: number;
+  };
+  mode: string;
+};
+
+export type RlmRunDebug = {
+  toolCallCount?: number;
+  finalRejectedCount?: number;
+  rejectionReasons?: string[];
+  criticRetriesUsed?: number;
+  criticPassed?: boolean;
+  criticScore?: number;
+  criticReason?: string;
+};
+
 export type RlmRunResult = {
   status: "completed" | "max_steps_reached" | "failed";
   runId?: string;
@@ -88,4 +112,6 @@ export type RlmRunResult = {
   sources?: AnswerSource[];
   steps: RlmStep[];
   error: string | null;
+  critic?: AnswerCriticMetadata;
+  debug?: RlmRunDebug;
 };
