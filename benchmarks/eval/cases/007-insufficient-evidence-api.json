@@ -7,7 +7,7 @@
   "mustMention": ["not enough evidence"],
   "mustNotClaim": ["confirmed endpoint", "will launch"],
   "referenceAnswer": "The correct answer should avoid claiming private future release details unless supported by public official sources.",
-  "acceptableAny": ["not enough evidence", "document not uploaded", "no uploaded source", "could not find", "cannot determine"],
+  "acceptableAny": ["not enough evidence", "do not have enough evidence", "document not uploaded", "no uploaded source", "could not find", "cannot determine"],
   "minGroundedRatio": 0.4,
   "minCorrectness": 0.7,
   "minCompleteness": 0.6,

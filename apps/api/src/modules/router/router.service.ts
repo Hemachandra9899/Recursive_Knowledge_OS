@@ -316,10 +316,43 @@ export async function answerWithRouter(input: RouterAnswerInput) {
       ? (result as any).results
       : [];
 
-    const answerMarkdown =
-      results.length > 0
+    if (results.length === 0) {
+      const answerMarkdown = notEnoughEvidenceAnswer(input.query);
+      return {
+        status: "ok",
+        route: decision,
+        ui: { answerMarkdown, citations: [], evidenceCoverage: {} },
+        answer: answerMarkdown,
+        rawToolResult: result,
+      };
+    }
+
+    const context = results.slice(0, 5).map((item: any, index: number) => {
+      const title = item.title || item.documentTitle || `Source ${index + 1}`;
+      const text = item.text || item.content || item.chunk || "";
+      return `[${index + 1}] ${title}\n${String(text).slice(0, 2000)}`;
+    }).join("\n\n---\n\n");
+
+    const prompt = [
+      "You are a research assistant. Answer the user's question based ONLY on the knowledge base results below.",
+      "If the results do NOT contain the information needed to answer the question, say you do not have enough evidence.",
+      "Do not make up facts. Do not guess.",
+      "",
+      `QUESTION: ${input.query}`,
+      "",
+      "KNOWLEDGE BASE RESULTS:",
+      context,
+      "",
+      "ANSWER:",
+    ].join("\n");
+
+    let answerMarkdown: string;
+    try {
+      answerMarkdown = await callModelService("reasoning", prompt);
+    } catch {
+      answerMarkdown = results.length > 0
         ? [
-            `I found ${results.length} relevant knowledge-base result(s).`,
+            `I found ${results.length} relevant knowledge-base result(s) but could not synthesize them.`,
             "",
             ...results.slice(0, 5).map((item: any, index: number) => {
               const title = item.title || item.documentTitle || item.sourceUrl || `Result ${index + 1}`;
@@ -328,6 +361,7 @@ export async function answerWithRouter(input: RouterAnswerInput) {
             }),
           ].join("\n\n")
         : notEnoughEvidenceAnswer(input.query);
+    }
 
     return {
       status: "ok",
@@ -348,7 +382,12 @@ export async function answerWithRouter(input: RouterAnswerInput) {
   }
 
   if (decision.tool === "direct_model") {
-    const answerMarkdown = await callModelService("coding", input.query);
+    let answerMarkdown: string;
+    try {
+      answerMarkdown = await callModelService("coding", input.query);
+    } catch {
+      answerMarkdown = `I encountered a temporary issue processing your coding request. Please try again.\n\nQuery: ${input.query}`;
+    }
 
     return {
       status: "ok",
