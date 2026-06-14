@@ -473,7 +473,7 @@ export async function answerWithRouter(input: RouterAnswerInput) {
 
   if (decision.tool === "web_research") {
     try {
-      const result = await withTimeout(
+      let result = await withTimeout(
         webResearch({
           projectId: input.projectId,
           query: input.query,
@@ -487,15 +487,68 @@ export async function answerWithRouter(input: RouterAnswerInput) {
         "web_research",
       );
 
-      const answerMarkdown = extractAnswerText(result);
-      const evidenceCoverage = extractEvidenceCoverage(result);
+      let answerMarkdown = extractAnswerText(result);
+      let evidenceCoverage = extractEvidenceCoverage(result);
 
-      const critic = evaluateFaithfulness({
+      let critic = evaluateFaithfulness({
         query: input.query,
         answerMarkdown,
         evidencePack: (result as any).evidencePack,
         threshold: ROUTER_FAITHFULNESS_THRESHOLD,
       });
+
+      if (critic.verdict === "retry") {
+        const focusedQuery = [
+          input.query,
+          "",
+          critic.fixHint,
+          "Answer directly and explicitly. Do not return unrelated content.",
+        ].join("\n");
+
+        result = await withTimeout(
+          webResearch({
+            projectId: input.projectId,
+            query: focusedQuery,
+            maxResults: ROUTER_RESEARCH_MAX_RESULTS,
+            maxPagesPerSource: ROUTER_RESEARCH_MAX_PAGES_PER_SOURCE,
+            maxTotalPages: ROUTER_RESEARCH_MAX_TOTAL_PAGES,
+            maxDepth: ROUTER_RESEARCH_MAX_DEPTH,
+            useOrchestrator: true,
+          }),
+          ROUTER_RESEARCH_TIMEOUT_MS,
+          "web_research_retry",
+        );
+
+        answerMarkdown = extractAnswerText(result);
+        evidenceCoverage = extractEvidenceCoverage(result);
+
+        critic = evaluateFaithfulness({
+          query: input.query,
+          answerMarkdown,
+          evidencePack: (result as any).evidencePack,
+          threshold: ROUTER_FAITHFULNESS_THRESHOLD,
+        });
+      }
+
+      if (!critic.passed) {
+        return {
+          ...result,
+          status: "partial",
+          route: decision,
+          critic,
+          ui: {
+            ...(result as any).ui,
+            answerMarkdown: [
+              "I found some evidence, but I do not have enough confidence that it fully answers the query.",
+              "",
+              answerMarkdown,
+            ].join("\n"),
+            citations: extractCitations(result),
+            evidenceCoverage,
+            faithfulness: critic,
+          },
+        };
+      }
 
       return {
         ...result,
