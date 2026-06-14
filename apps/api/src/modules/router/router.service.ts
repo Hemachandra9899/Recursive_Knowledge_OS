@@ -3,6 +3,7 @@ import {
   searchKnowledgeBase,
   githubRepo,
 } from "../tools/tools.service.js";
+import { evaluateFaithfulness } from "./faithfulness-critic.js";
 
 export type RouterTier = 1 | 2 | 3;
 
@@ -39,6 +40,9 @@ const ROUTER_RESEARCH_MAX_DEPTH = Number(
 );
 const ROUTER_RESEARCH_TIMEOUT_MS = Number(
   process.env.ROUTER_RESEARCH_TIMEOUT_MS || 120_000,
+);
+const ROUTER_FAITHFULNESS_THRESHOLD = Number(
+  process.env.ROUTER_FAITHFULNESS_THRESHOLD || 0.7,
 );
 
 function sleep(ms: number) {
@@ -391,20 +395,29 @@ function notEnoughEvidenceAnswer(query: string): string {
 function partialResearchTimeoutResponse(
   decision: RouterDecision,
   error: unknown,
+  query: string,
 ) {
   const reason = error instanceof Error ? error.message : String(error);
+  const answerMarkdown = [
+    "I could not complete web research within the time limit.",
+    "",
+    "I do not have enough evidence to answer this confidently.",
+    "",
+    `Reason: ${reason}`,
+  ].join("\n");
+
+  const critic = evaluateFaithfulness({
+    query,
+    answerMarkdown,
+    threshold: ROUTER_FAITHFULNESS_THRESHOLD,
+  });
 
   return {
     status: "partial",
     route: decision,
+    critic,
     ui: {
-      answerMarkdown: [
-        "I could not complete web research within the time limit.",
-        "",
-        "I do not have enough evidence to answer this confidently.",
-        "",
-        `Reason: ${reason}`,
-      ].join("\n"),
+      answerMarkdown,
       citations: [],
       evidenceCoverage: {
         hasEvidence: false,
@@ -414,8 +427,9 @@ function partialResearchTimeoutResponse(
         unsupportedClaimCount: 0,
         missing: [reason],
       },
+      faithfulness: critic,
     },
-    answer: "I do not have enough evidence to answer this confidently.",
+    answer: answerMarkdown,
     error: reason,
   };
 }
@@ -434,13 +448,22 @@ export async function answerWithRouter(input: RouterAnswerInput) {
       maxFiles: 30,
     });
 
+    const critic = evaluateFaithfulness({
+      query: input.query,
+      answerMarkdown: result.answer,
+      toolPreviews: [{ tool: "github_repo", preview: result.answer, sources: result.sources ?? [] }],
+      threshold: ROUTER_FAITHFULNESS_THRESHOLD,
+    });
+
     return {
       status: "ok",
       route: decision,
+      critic,
       ui: {
         answerMarkdown: result.answer,
         citations: result.sources ?? [],
         evidenceCoverage: {},
+        faithfulness: critic,
       },
       answer: result.answer,
       sources: result.sources ?? [],
@@ -464,18 +487,30 @@ export async function answerWithRouter(input: RouterAnswerInput) {
         "web_research",
       );
 
+      const answerMarkdown = extractAnswerText(result);
+      const evidenceCoverage = extractEvidenceCoverage(result);
+
+      const critic = evaluateFaithfulness({
+        query: input.query,
+        answerMarkdown,
+        evidencePack: (result as any).evidencePack,
+        threshold: ROUTER_FAITHFULNESS_THRESHOLD,
+      });
+
       return {
         ...result,
         route: decision,
+        critic,
         ui: {
           ...(result as any).ui,
-          answerMarkdown: extractAnswerText(result),
+          answerMarkdown,
           citations: extractCitations(result),
-          evidenceCoverage: extractEvidenceCoverage(result),
+          evidenceCoverage,
+          faithfulness: critic,
         },
       };
     } catch (error) {
-      return partialResearchTimeoutResponse(decision, error);
+      return partialResearchTimeoutResponse(decision, error, input.query);
     }
   }
 
@@ -492,10 +527,16 @@ export async function answerWithRouter(input: RouterAnswerInput) {
 
     if (results.length === 0) {
       const answerMarkdown = notEnoughEvidenceAnswer(input.query);
+      const critic = evaluateFaithfulness({
+        query: input.query,
+        answerMarkdown,
+        threshold: ROUTER_FAITHFULNESS_THRESHOLD,
+      });
       return {
         status: "ok",
         route: decision,
-        ui: { answerMarkdown, citations: [], evidenceCoverage: {} },
+        critic,
+        ui: { answerMarkdown, citations: [], evidenceCoverage: {}, faithfulness: critic },
         answer: answerMarkdown,
         rawToolResult: result,
       };
@@ -537,9 +578,28 @@ export async function answerWithRouter(input: RouterAnswerInput) {
         : notEnoughEvidenceAnswer(input.query);
     }
 
+    const critic = evaluateFaithfulness({
+      query: input.query,
+      answerMarkdown,
+      toolPreviews: [
+        {
+          tool: "search_kb",
+          preview: answerMarkdown,
+          sources: results
+            .map((item: any) => ({
+              title: item.title ?? item.documentTitle ?? null,
+              url: item.sourceUrl ?? item.url ?? null,
+            }))
+            .filter((item: any) => item.title || item.url),
+        },
+      ],
+      threshold: ROUTER_FAITHFULNESS_THRESHOLD,
+    });
+
     return {
       status: "ok",
       route: decision,
+      critic,
       ui: {
         answerMarkdown,
         citations: results
@@ -549,6 +609,7 @@ export async function answerWithRouter(input: RouterAnswerInput) {
           }))
           .filter((item: any) => item.title || item.url),
         evidenceCoverage: {},
+        faithfulness: critic,
       },
       answer: answerMarkdown,
       rawToolResult: result,
@@ -563,13 +624,21 @@ export async function answerWithRouter(input: RouterAnswerInput) {
       answerMarkdown = `I encountered a temporary issue processing your coding request. Please try again.\n\nQuery: ${input.query}`;
     }
 
+    const critic = evaluateFaithfulness({
+      query: input.query,
+      answerMarkdown,
+      threshold: ROUTER_FAITHFULNESS_THRESHOLD,
+    });
+
     return {
       status: "ok",
       route: decision,
+      critic,
       ui: {
         answerMarkdown,
         citations: [],
         evidenceCoverage: {},
+        faithfulness: critic,
       },
       answer: answerMarkdown,
     };
@@ -578,14 +647,25 @@ export async function answerWithRouter(input: RouterAnswerInput) {
   if (decision.tool === "sandbox") {
     const result = await callRlmRuntime(input);
 
+    const answerMarkdown = extractAnswerText(result);
+    const evidenceCoverage = extractEvidenceCoverage(result);
+
+    const critic = evaluateFaithfulness({
+      query: input.query,
+      answerMarkdown,
+      threshold: ROUTER_FAITHFULNESS_THRESHOLD,
+    });
+
     return {
       ...(result as Record<string, unknown>),
       route: decision,
+      critic,
       ui: {
         ...(result as any).ui,
-        answerMarkdown: extractAnswerText(result),
+        answerMarkdown,
         citations: extractCitations(result),
-        evidenceCoverage: extractEvidenceCoverage(result),
+        evidenceCoverage,
+        faithfulness: critic,
       },
     };
   }
