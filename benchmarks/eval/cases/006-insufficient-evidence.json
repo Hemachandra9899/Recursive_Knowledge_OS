@@ -7,6 +7,7 @@
   "mustMention": ["not enough evidence"],
   "mustNotClaim": ["$100000", "$200000", "confirmed salary"],
   "referenceAnswer": "The correct answer should say there is not enough evidence or no uploaded source available to determine this.",
+  "acceptableAny": ["not enough evidence", "document not uploaded", "no uploaded source", "could not find", "cannot determine"],
   "minGroundedRatio": 0,
   "minCorrectness": 0.7,
   "minCompleteness": 0.6,

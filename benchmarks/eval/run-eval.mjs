@@ -280,6 +280,20 @@ function checkMustMention(answer, mustMention) {
   };
 }
 
+function checkAcceptableAny(answer, acceptableAny) {
+  const values = safeArray(acceptableAny);
+  if (values.length === 0) return { enabled: false, passed: true, hits: [] };
+
+  const a = normalizeText(answer);
+  const hits = values.filter((item) => a.includes(normalizeText(item)));
+
+  return {
+    enabled: true,
+    passed: hits.length > 0,
+    hits,
+  };
+}
+
 function checkMustNotClaim(answer, mustNotClaim) {
   const a = normalizeText(answer);
   const violations = safeArray(mustNotClaim).filter((item) => a.includes(normalizeText(item)));
@@ -311,12 +325,15 @@ function computeGroundedRatio(coverage) {
 async function judgeWithModel(caseItem, answer) {
   if (!ENABLE_JUDGE) {
     const mention = checkMustMention(answer, caseItem.mustMention);
+    const acceptable = checkAcceptableAny(answer, caseItem.acceptableAny);
     const forbidden = checkMustNotClaim(answer, caseItem.mustNotClaim);
+
+    const mentionScore = acceptable.enabled ? (acceptable.passed ? 1 : 0) : mention.score;
 
     return {
       correctness: forbidden.passed ? 1 : 0.3,
-      completeness: mention.score,
-      missing: mention.missing,
+      completeness: mentionScore,
+      missing: acceptable.enabled ? [] : mention.missing,
       errors: forbidden.violations,
       mode: "heuristic",
     };
@@ -362,12 +379,15 @@ async function judgeWithModel(caseItem, answer) {
     };
   } catch (error) {
     const mention = checkMustMention(answer, caseItem.mustMention);
+    const acceptable = checkAcceptableAny(answer, caseItem.acceptableAny);
     const forbidden = checkMustNotClaim(answer, caseItem.mustNotClaim);
+
+    const mentionScore = acceptable.enabled ? (acceptable.passed ? 1 : 0) : mention.score;
 
     return {
       correctness: forbidden.passed ? 1 : 0.3,
-      completeness: mention.score,
-      missing: mention.missing,
+      completeness: mentionScore,
+      missing: acceptable.enabled ? [] : mention.missing,
       errors: [
         `judge_failed:${error instanceof Error ? error.message : String(error)}`,
         ...forbidden.violations,
@@ -394,7 +414,10 @@ function evaluateCase(caseItem, response, answer, durationMs, judge) {
         (!expectedTool || String(expectedTool) === String(actualTool));
 
   const mention = checkMustMention(answer, caseItem.mustMention);
+  const acceptable = checkAcceptableAny(answer, caseItem.acceptableAny);
   const forbidden = checkMustNotClaim(answer, caseItem.mustNotClaim);
+
+  const mentionPassed = acceptable.enabled ? acceptable.passed : mention.passed;
 
   const minGroundedRatio = Number(caseItem.minGroundedRatio ?? 0);
   const maxLatencyMs = Number(caseItem.maxLatencyMs ?? 180_000);
@@ -410,7 +433,7 @@ function evaluateCase(caseItem, response, answer, durationMs, judge) {
 
   if (!routingPassed) failures.push(`routing expected tier/tool ${expectedTier}/${expectedTool}, got ${actualTier}/${actualTool}`);
   if (!groundedPassed) failures.push(`groundedRatio ${groundedRatio.toFixed(2)} < ${minGroundedRatio}`);
-  if (!mention.passed) failures.push(`missing mustMention: ${mention.missing.join(", ")}`);
+  if (!mentionPassed) failures.push(`missing mustMention/acceptableAny: ${mention.missing.join(", ")}`);
   if (!forbidden.passed) failures.push(`mustNotClaim violations: ${forbidden.violations.join(", ")}`);
   if (!latencyPassed) failures.push(`latency ${durationMs} > ${maxLatencyMs}`);
   if (!correctnessPassed) failures.push(`correctness ${judge.correctness.toFixed(2)} too low`);
@@ -431,9 +454,10 @@ function evaluateCase(caseItem, response, answer, durationMs, judge) {
     correctness: judge.correctness,
     completeness: judge.completeness,
     judgeMode: judge.mode,
-    mustMentionPassed: mention.passed,
+    mustMentionPassed: mentionPassed,
     mustMentionHits: mention.hits,
     mustMentionMissing: mention.missing,
+    acceptableAnyHits: acceptable.hits,
     mustNotClaimPassed: forbidden.passed,
     mustNotClaimViolations: forbidden.violations,
     latencyPassed,
